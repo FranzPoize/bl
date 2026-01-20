@@ -1,0 +1,9 @@
+test_dir
+*.pyc
+__pycache__/
+.env
+.DS_Store
+*spec.yaml
+spec.yaml
+external-src/
+links/
