@@ -9,6 +9,7 @@ class OriginType(Enum):
 
     BRANCH = "branch"
     PR = "pr"
+    REF = "ref"
 
 
 class ModuleOrigin:
@@ -55,6 +56,29 @@ class ProjectSpec:
         return f"ProjectSpec(specs={self.specs})"
 
 
+def get_origin_type(origin_value: str) -> OriginType:
+    """
+    Determines the origin type based on the origin value.
+
+    Args:
+        origin_value: The origin string to evaluate.
+
+    Returns:
+        The corresponding OriginType.
+    """
+    # Pattern to match GitHub PR references: refs/pull/{pr_id}/head
+    pr_pattern = re.compile(r"^refs/pull/\d+/head$")
+    # Pattern to match that matches git reference hashes (40 hex characters)
+    ref_pattern = re.compile(r"^[a-z0-9]{40}$")
+
+    if pr_pattern.match(origin_value):
+        return OriginType.PR
+    elif ref_pattern.match(origin_value):
+        return OriginType.REF
+    else:
+        return OriginType.BRANCH
+
+
 def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
     """
     Loads and parses the project specification from a YAML file.
@@ -68,9 +92,6 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
     try:
         with open(file_path, "r") as f:
             data: Dict[str, Any] = yaml.safe_load(f)
-
-        # Pattern to match GitHub PR references: refs/pull/{pr_id}/head
-        pr_pattern = re.compile(r"^refs/pull/\d+/head$")
 
         specs: Dict[str, ModuleSpec] = {}
         for section_name, section_data in data.items():
@@ -88,7 +109,7 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     origin_value = parts[1]
 
                     # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
-                    origin_type = OriginType.PR if pr_pattern.match(origin_value) else OriginType.BRANCH
+                    origin_type = get_origin_type(origin_value)
 
                     origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
 
@@ -113,7 +134,7 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     remotes[remote_key] = remote_url
 
                     # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
-                    origin_type = OriginType.PR if pr_pattern.match(origin_value) else OriginType.BRANCH
+                    origin_type = get_origin_type(origin_value)
 
                     # Add to origins list
                     origins.append(ModuleOrigin(remote_key, origin_value, origin_type))

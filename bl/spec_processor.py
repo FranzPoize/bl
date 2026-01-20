@@ -11,6 +11,35 @@ from .spec_parser import ProjectSpec, ModuleSpec, ModuleOrigin, OriginType
 console = Console()
 
 
+def create_clone_args(base_origin: ModuleOrigin, remote_url: str) -> List[str]:
+    """Creates git clone arguments based on the base origin."""
+    args = [
+        "clone",
+        "--no-checkout",
+        "--filter=blob:none",
+        "--depth",
+        "1",
+    ]
+
+    if base_origin.type == OriginType.REF:
+        args += [
+            "--revision",
+            base_origin.origin,
+        ]
+    else:
+        args += [
+            "--single-branch",
+            "--branch",
+            base_origin.origin,
+        ]
+
+    args += [
+        remote_url,
+    ]
+
+    return args
+
+
 class SpecProcessor:
     """
     Processes a ProjectSpec by concurrently cloning and merging modules.
@@ -61,9 +90,10 @@ class SpecProcessor:
                     "--deepen",
                     str(100 ** (i + 1)),
                     remote_url,
-                    f"{origin.remote}:{local_ref}",
+                    f"{origin.origin}:{local_ref}",
                     cwd=module_path,
                 )
+                progress.update(task_id, status=f"Merging {local_ref} into {base_origin.origin} (attempt {i + 2})...")
                 if ret != 0:
                     progress.update(task_id, status=f"[red]Deepen fetch failed: {err}")
                     return ret, out, err
@@ -71,17 +101,17 @@ class SpecProcessor:
             else:
                 return ret, out, err
 
-            ret, out, err = await self.run_git(
-                "fetch",
-                "--unshallow",
-                remote_url,
-                f"{origin.remote}:{local_ref}",
-                cwd=module_path,
-            )
-            if ret != 0:
-                progress.update(task_id, status=f"[red]Deepen fetch failed: {err}")
-                return ret, out, err
-            ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+        ret, out, err = await self.run_git(
+            "fetch",
+            "--unshallow",
+            remote_url,
+            f"{origin.origin}:{local_ref}",
+            cwd=module_path,
+        )
+        if ret != 0:
+            progress.update(task_id, status=f"[red]Deepen fetch failed while merging {local_ref}: {err}")
+            return ret, out, err
+        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
 
         if ret != 0:
             progress.update(task_id, status=f"[red]Merge conflict in {origin.origin}: {err}")
@@ -120,16 +150,10 @@ class SpecProcessor:
                 # Clone shallowly with blobless filter and no checkout
                 # We don't use the cache yet for simplicity, but we follow the optimized command
                 # User --revision for specific commit checkout if needed
+                args = create_clone_args(base_origin, remote_url)
+
                 ret, out, err = await self.run_git(
-                    "clone",
-                    "--no-checkout",
-                    "--filter=blob:none",
-                    "--depth",
-                    "1",
-                    "--single-branch",
-                    "--branch",
-                    base_origin.origin,
-                    remote_url,
+                    *args,
                     str(module_path),
                 )
 
@@ -168,7 +192,7 @@ class SpecProcessor:
                             "fetch", remote_url, f"{origin.origin}:{local_ref}", cwd=module_path
                         )
                     else:
-                        # Fetch Branch
+                        # Fetch Branch or commit hash
                         local_ref = f"merge-{i}"
                         ret, out, err = await self.run_git(
                             "fetch", "--depth", "1", remote_url, f"{origin.origin}:{local_ref}", cwd=module_path
