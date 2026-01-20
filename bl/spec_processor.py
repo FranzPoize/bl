@@ -43,6 +43,8 @@ def create_clone_args(base_origin: ModuleOrigin, remote_url: str) -> List[str]:
         ]
     else:
         args += [
+            "--origin",
+            base_origin.remote,
             "--single-branch",
             "--branch",
             base_origin.origin,
@@ -193,14 +195,6 @@ class SpecProcessor:
                     module_path = self.workdir / "src/"
                 else:
                     module_path = self.modules_dir / name
-                # if module_path.exists():
-                #     # For now, we clear the existing directory to ensure a clean state
-                #     # In a real scenario, we might want to update it
-                #     import shutil
-                #
-                #     shutil.rmtree(module_path)
-
-                # module_path.mkdir(parents=True, exist_ok=True)
 
                 if not spec.origins:
                     progress.update(task_id, status="[yellow]No origins defined", completed=1)
@@ -222,6 +216,8 @@ class SpecProcessor:
                             "--filter=blob:none",
                             "--depth",
                             "1",
+                            "--origin",
+                            base_origin.remote,
                             "--single-branch",
                             "--branch",
                             base_origin.origin,
@@ -236,12 +232,40 @@ class SpecProcessor:
                             str(module_path),
                         )
 
+                    for name, url in (spec.remotes or {}).items():
+                        if name != "origin":
+                            await self.run_git("remote", "add", name, url, cwd=module_path)
+                            await self.run_git("config", f"remote.{name}.promisor", "true", cwd=module_path)
+                            await self.run_git(
+                                "config", f"remote.{name}.partialclonefilter", "blob:none", cwd=module_path
+                            )
+
                     if ret != 0:
-                        progress.update(task_id, status=f"[red]Clone failed: {err}")
+                        progress.update(task_id, status=f"[red]Clone failed why cloning base branch: {err}")
                         return ret
                 else:
+                    ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
+
+                    if out != "":
+                        progress.update(task_id, status=f"[red]Repo is dirty:\n{out}")
+                        return ret
                     # Reset all the local origin to their remote origins
-                    progress.update(task_id, status=f"Resetting existing repository for {base_origin.origin}...")
+                    progress.update(
+                        task_id,
+                        status=(
+                            f"Resetting existing repository for {base_origin.origin}"
+                            + " to {base_origin.remote}/{base_origin.origin}..."
+                        ),
+                    )
+                    ret, out, err = await self.run_git(
+                        "reset",
+                        "--hard",
+                        f"{base_origin.remote}/{base_origin.origin}",
+                        cwd=module_path,
+                    )
+                    if ret != 0:
+                        progress.update(task_id, status=f"[red]Reset failed: {err}")
+                        return ret
 
                     for origin in spec.origins[1:]:
                         local_ref = _get_local_ref(origin)
@@ -278,6 +302,7 @@ class SpecProcessor:
                     )
 
                     if ret != 0:
+                        # Should not necessarily crash
                         progress.update(task_id, status=f"[red]Fetch failed for {origin.origin}")
                         return ret
 

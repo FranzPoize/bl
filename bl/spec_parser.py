@@ -126,24 +126,14 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     remote_url = parts[0]
                     origin_value = parts[1]
 
-                    # Extract repository name as key from URL
-                    # Handle both https://github.com/org/repo and git@github.com:org/repo.git formats
-                    if remote_url.startswith("git@"):
-                        # git@github.com:org/repo.git -> extract repo name
-                        repo_part = remote_url.split(":")[-1].rstrip(".git")
-                        remote_key = repo_part.split("/")[-1]
-                    else:
-                        # https://github.com/org/repo -> extract repo name
-                        remote_key = remote_url.rstrip("/").split("/")[-1]
-
                     # Add to remotes dict
-                    remotes[remote_key] = remote_url
+                    remotes["origin"] = remote_url
 
                     # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
                     origin_type = get_origin_type(origin_value)
 
                     # Add to origins list
-                    origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
+                    origins.append(ModuleOrigin("origin", origin_value, origin_type))
 
             specs[section_name] = ModuleSpec(
                 modules,
