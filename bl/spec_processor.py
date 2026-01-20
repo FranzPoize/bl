@@ -41,12 +41,61 @@ class SpecProcessor:
         returncode = proc.returncode if proc.returncode is not None else -1
         return returncode, stdout.decode().strip(), stderr.decode().strip()
 
+    async def try_merge(
+        self,
+        progress: Progress,
+        task_id: TaskID,
+        remote_url: str,
+        local_ref: str,
+        module_path: Path,
+        origin: ModuleOrigin,
+        base_origin: ModuleOrigin,
+    ) -> bool:
+        # Merge
+        for i in range(4):
+            ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+            if ret != 0:
+                await self.run_git("merge", "--abort", cwd=module_path)
+                ret, out, err = await self.run_git(
+                    "fetch",
+                    "--deepen",
+                    str(100 ** (i + 1)),
+                    remote_url,
+                    f"{origin.remote}:{local_ref}",
+                    cwd=module_path,
+                )
+                if ret != 0:
+                    progress.update(task_id, status=f"[red]Deepen fetch failed: {err}")
+                    return ret, out, err
+                progress.update(task_id, status=f"[yellow]Deepening fetch to depth {100 ** (i + 1)}...")
+            else:
+                return ret, out, err
+
+            ret, out, err = await self.run_git(
+                "fetch",
+                "--unshallow",
+                remote_url,
+                f"{origin.remote}:{local_ref}",
+                cwd=module_path,
+            )
+            if ret != 0:
+                progress.update(task_id, status=f"[red]Deepen fetch failed: {err}")
+                return ret, out, err
+            ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+
+        if ret != 0:
+            progress.update(task_id, status=f"[red]Merge conflict in {origin.origin}: {err}")
+            # In case of conflict, we might want to abort the merge
+            await self.run_git("merge", "--abort", cwd=module_path)
+
+        return ret, out, err
+
     async def process_module(self, name: str, spec: ModuleSpec, progress: Progress) -> None:
         """Processes a single ModuleSpec."""
         total_steps = len(spec.origins) if spec.origins else 1
-        task_id = progress.add_task(f"[cyan]{name}", status="Waiting...", total=total_steps)
 
         async with self.semaphore:
+            task_id = progress.add_task(f"[cyan]{name}", status="Waiting...", total=total_steps)
             try:
                 module_path = self.modules_dir / name
                 if module_path.exists():
@@ -70,6 +119,7 @@ class SpecProcessor:
 
                 # Clone shallowly with blobless filter and no checkout
                 # We don't use the cache yet for simplicity, but we follow the optimized command
+                # User --revision for specific commit checkout if needed
                 ret, out, err = await self.run_git(
                     "clone",
                     "--no-checkout",
@@ -99,7 +149,13 @@ class SpecProcessor:
 
                 # 4. Fetch and Merge remaining origins
                 for i, origin in enumerate(spec.origins[1:], 1):
-                    progress.update(task_id, status=f"Merging {origin.remote}/{origin.origin}...")
+                    progress.update(
+                        task_id,
+                        status=(
+                            f"Merging {origin.remote}/{origin.origin}"
+                            + f" into {base_origin.remote}/{base_origin.origin}..."
+                        ),
+                    )
 
                     remote_url = (spec.remotes or {}).get(origin.remote) or origin.remote
 
@@ -122,42 +178,17 @@ class SpecProcessor:
                         progress.update(task_id, status=f"[red]Fetch failed for {origin.origin}")
                         return
 
-                    # Merge
-                    ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+                    # Try to merge
+                    ret, out, err = await self.try_merge(
+                        progress, task_id, remote_url, local_ref, module_path, origin, base_origin
+                    )
                     if ret != 0:
-                        for i in range(4):
-                            await self.run_git("merge", "--abort", cwd=module_path)
-                            ret, out, err = await self.run_git(
-                                "fetch",
-                                "--deepen",
-                                str(100 ** (i + 1)),
-                                remote_url,
-                                f"{origin.origin}:{local_ref}",
-                                cwd=module_path,
-                            )
-                            progress.update(task_id, status=f"[yellow]Deepening fetch to depth {100 ** (i + 1)}...")
-                            ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
-                            progress.update(task_id, status=f"[yellow]Merging {origin.origin}/{local_ref}...")
-
-                        if ret != 0:
-                            await self.run_git("merge", "--abort", cwd=module_path)
-                            ret, out, err = await self.run_git(
-                                "fetch", remote_url, f"{origin.origin}:{local_ref}", cwd=module_path
-                            )
-                            print("######################## fetch deep " + str(ret))
-                            print("out: " + out)
-                            progress.update(task_id, status=f"[yellow]Performing full fetch for {origin.origin}...")
-                            ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
-
-                            if ret != 0:
-                                progress.update(task_id, status=f"[red]Merge conflict in {origin.origin}: {err}")
-                                # In case of conflict, we might want to abort the merge
-                                await self.run_git("merge", "--abort", cwd=module_path)
-                                return
+                        return
 
                     progress.advance(task_id)
 
                 progress.update(task_id, status="[green]Complete")
+                progress.remove_task(task_id)
 
             except Exception as e:
                 progress.update(task_id, status=f"[red]Error: {str(e)}")
@@ -185,5 +216,5 @@ class SpecProcessor:
 async def process_project(project_spec: ProjectSpec, workdir: Path, concurrency: int = 4) -> None:
     """Helper function to run the SpecProcessor."""
     processor = SpecProcessor(workdir, concurrency)
-    project_spec.specs = {name: spec for name, spec in project_spec.specs.items() if name == "sale-workflow"}
+    # project_spec.specs = {name: spec for name, spec in project_spec.specs.items() if name == "sale-workflow"}
     await processor.process_project(project_spec)
