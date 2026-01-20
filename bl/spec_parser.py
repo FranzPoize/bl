@@ -37,10 +37,14 @@ class ModuleSpec:
         modules: List[str],
         remotes: Optional[Dict[str, str]] = None,
         origins: Optional[List[ModuleOrigin]] = None,
+        shell_commands: Optional[List[str]] = None,
+        patch_globs_to_apply: Optional[List[str]] = None,
     ):
         self.modules = modules
         self.remotes = remotes
         self.origins = origins
+        self.shell_commands = shell_commands
+        self.patch_globs_to_apply = patch_globs_to_apply
 
     def __repr__(self) -> str:
         return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.origins})"
@@ -99,6 +103,8 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
             src = section_data.get("src")
             remotes = section_data.get("remotes") or {}
             merges = section_data.get("merges") or []
+            shell_commands = section_data.get("shell_command_after") or None
+            patch_globs_to_apply = section_data.get("patch_globs") or None
 
             # Parse merges into ModuleOrigin objects
             origins: List[ModuleOrigin] = []
@@ -139,7 +145,13 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     # Add to origins list
                     origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
 
-            specs[section_name] = ModuleSpec(modules, remotes if remotes else None, origins if origins else None)
+            specs[section_name] = ModuleSpec(
+                modules,
+                remotes if remotes else None,
+                origins if origins else None,
+                shell_commands,
+                patch_globs_to_apply,
+            )
 
         return ProjectSpec(specs)
 
