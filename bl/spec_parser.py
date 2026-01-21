@@ -4,6 +4,14 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 
 
+class OriginType(Enum):
+    """Type of origin reference."""
+
+    BRANCH = "branch"
+    PR = "pr"
+    REF = "ref"
+
+
 def make_remote_merge_from_src(src: str) -> str:
     """
     Creates a remote and merge entry from the src string.
@@ -39,14 +47,6 @@ def get_origin_type(origin_value: str) -> OriginType:
         return OriginType.REF
     else:
         return OriginType.BRANCH
-
-
-class OriginType(Enum):
-    """Type of origin reference."""
-
-    BRANCH = "branch"
-    PR = "pr"
-    REF = "ref"
 
 
 class ModuleOrigin:
@@ -167,17 +167,3 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
     except Exception as e:
         print(f"An unexpected error occurred while processing '{file_path}': {e}")
         return None
-
-
-if __name__ == "__main__":
-    # Example usage:
-    spec_file = "spec.yaml"
-    project_spec = load_spec_file(spec_file)
-
-    if project_spec:
-        print("Successfully loaded project specification:")
-        # You can access the data like this:
-        # print(project_spec.specs['odoo'].modules)
-        # print(project_spec.specs['server-ux'].remotes)
-        # print(project_spec.specs['server-ux'].origins)
-        print([spec for name, spec in project_spec.specs.items() if name == "queue"])

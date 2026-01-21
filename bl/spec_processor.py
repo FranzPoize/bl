@@ -7,6 +7,7 @@ from typing import List, Dict, Optional, Any
 from typing_extensions import deprecated
 from rich.progress import MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 from rich.live import Live
+from rich.table import Table
 from rich.console import Console
 from .spec_parser import ProjectSpec, ModuleSpec, ModuleOrigin, OriginType
 
@@ -380,18 +381,24 @@ class SpecProcessor:
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn("{task.fields[status]}"),
-            console=console,
-            refresh_per_second=10,
         )
+
         task_count_progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
             MofNCompleteColumn(),
-            console=console,
-            refresh_per_second=10,
         )
-        task_list_progress.start()
-        task_count_progress.start()
         count_task = task_count_progress.add_task("Processing Modules", total=len(project_spec.specs))
-        try:
+
+        progress_table = Table.grid()
+        progress_table.add_row(
+            task_list_progress,
+        )
+        progress_table.add_row(
+            task_count_progress,
+        )
+
+        with Live(progress_table, console=console, refresh_per_second=10):
             tasks = []
             for name, spec in project_spec.specs.items():
                 tasks.append(
@@ -405,9 +412,6 @@ class SpecProcessor:
                 )
 
             await asyncio.gather(*tasks)
-        finally:
-            task_list_progress.stop()
-            task_count_progress.stop()
 
 
 async def process_project(project_spec: ProjectSpec, workdir: Path, concurrency: int = 4) -> None:
