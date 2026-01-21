@@ -9,3 +9,4 @@ external-src/
 links/
 *.egg-info/
 uv.lock
+frozen.yaml

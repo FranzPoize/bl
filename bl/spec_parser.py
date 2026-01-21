@@ -1,5 +1,7 @@
+import warnings
 import yaml
 import re
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
@@ -49,21 +51,28 @@ def get_origin_type(origin_value: str) -> OriginType:
         return OriginType.BRANCH
 
 
-class ModuleOrigin:
-    """Represents an origin reference for a module."""
+class RefspecInfo:
+    """A git refspec with its remote, type and optional frozen sha."""
 
     def __init__(
         self,
         remote: str,
-        origin: str,
+        ref_str: str,
         type: OriginType,
+        frozen_sha: Optional[str] = None,
     ):
         self.remote = remote
-        self.origin = origin
+        self.refspec = ref_str
+        """ The refspec string (branch name, PR ref, or commit hash). """
         self.type = type
+        self.frozen_sha = frozen_sha
 
     def __repr__(self) -> str:
-        return f"ModuleOrigin(remote={self.remote!r}, origin={self.origin!r}, type={self.type.value})"
+        return (
+            "RefspecInfo("
+            f"remote={self.remote!r}, origin={self.refspec!r}, type={self.type.value}, "
+            f"frozen_sha={self.frozen_sha!r})"
+        )
 
 
 class ModuleSpec:
@@ -73,20 +82,22 @@ class ModuleSpec:
         self,
         modules: List[str],
         remotes: Optional[Dict[str, str]] = None,
-        origins: Optional[List[ModuleOrigin]] = None,
+        origins: Optional[List[RefspecInfo]] = None,
         shell_commands: Optional[List[str]] = None,
         patch_globs_to_apply: Optional[List[str]] = None,
         target_folder: Optional[str] = None,
+        frozen_modules: Optional[Dict[str, Dict[str, str]]] = None,
     ):
         self.modules = modules
         self.remotes = remotes
-        self.origins = origins
+        self.refspec_info = origins
         self.shell_commands = shell_commands
         self.patch_globs_to_apply = patch_globs_to_apply
+        self.frozen_modules = frozen_modules
         self.target_folder = None
 
     def __repr__(self) -> str:
-        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.origins})"
+        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info})"
 
 
 class ProjectSpec:
@@ -113,6 +124,17 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
         with open(file_path, "r") as f:
             data: Dict[str, Any] = yaml.safe_load(f)
 
+        frozen_mapping: Dict[str, Dict[str, Dict[str, str]]] = {}
+        frozen_path = Path(file_path).with_name("frozen.yaml")
+        if frozen_path.exists():
+            try:
+                with frozen_path.open("r") as frozen_file:
+                    loaded_freezes = yaml.safe_load(frozen_file) or {}
+                    if isinstance(loaded_freezes, dict):
+                        frozen_mapping = loaded_freezes
+            except yaml.YAMLError as e:
+                print(f"Error parsing frozen YAML file '{frozen_path}': {e}")
+
         specs: Dict[str, ModuleSpec] = {}
         for section_name, section_data in data.items():
             modules = section_data.get("modules", [])
@@ -122,8 +144,13 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
             shell_commands = section_data.get("shell_command_after") or None
             patch_globs_to_apply = section_data.get("patch_globs") or None
 
-            # Parse merges into ModuleOrigin objects
-            origins: List[ModuleOrigin] = []
+            frozen_for_section_raw = frozen_mapping.get(section_name)
+            frozen_for_section: Optional[Dict[str, Dict[str, str]]] = (
+                frozen_for_section_raw if isinstance(frozen_for_section_raw, dict) else None
+            )
+
+            # Parse merges into RefspecInfo objects
+            origins: List[RefspecInfo] = []
             if src:
                 # If src is defined, create a remote and merge entry from it
                 src_remotes, src_merges = make_remote_merge_from_src(src)
@@ -139,14 +166,42 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
                     origin_type = get_origin_type(origin_value)
 
-                    origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
-                if len(parts) == 3 and remote_key not in remotes:
+                    frozen_sha = None
+                    if frozen_for_section:
+                        remote_freezes = frozen_for_section.get(remote_key) or {}
+                        frozen_sha = remote_freezes.get(origin_value)
+
+                    origins.append(
+                        RefspecInfo(
+                            remote_key,
+                            origin_value,
+                            origin_type,
+                            frozen_sha=frozen_sha,
+                        )
+                    )
+                elif len(parts) == 3:
+                    warnings.warn(
+                        "Deprecated src format: use <url> <sha> format for the src property",
+                        DeprecationWarning,
+                    )
                     remote_key = parts[0]
                     origin_value = parts[2]
 
                     origin_type = get_origin_type(origin_value)
 
-                    origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
+                    frozen_sha = None
+                    if frozen_for_section:
+                        remote_freezes = frozen_for_section.get(remote_key) or {}
+                        frozen_sha = remote_freezes.get(origin_value)
+
+                    origins.append(
+                        RefspecInfo(
+                            remote_key,
+                            origin_value,
+                            origin_type,
+                            frozen_sha=frozen_sha,
+                        )
+                    )
 
             specs[section_name] = ModuleSpec(
                 modules,
@@ -154,6 +209,7 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                 origins if origins else None,
                 shell_commands,
                 patch_globs_to_apply,
+                frozen_modules=frozen_for_section or None,
             )
 
         return ProjectSpec(specs)

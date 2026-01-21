@@ -8,10 +8,11 @@ import asyncio
 def run():
     # Example usage:
     file_name = sys.argv[1] if len(sys.argv) > 1 else "spec.yaml"
+    concurrentio = int(sys.argv[2]) if len(sys.argv) > 2 else 16
     spec_file = file_name
     project_spec = load_spec_file(spec_file)
     if project_spec is not None:
-        asyncio.run(process_project(project_spec, workdir=Path("."), concurrency=16))
+        asyncio.run(process_project(project_spec, workdir=Path("."), concurrency=concurrentio))
 
 
 if __name__ == "__main__":
