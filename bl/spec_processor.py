@@ -94,6 +94,8 @@ class SpecProcessor:
                 + "property is deprecated. Use target_folder: 'src/' in spec.yaml."
             )
             return self.workdir / "src/"
+        elif module_spec.target_folder is not None:
+            return self.workdir / module_spec.target_folder
         else:
             return self.workdir / "external-src" / module_name
 
