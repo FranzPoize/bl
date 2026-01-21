@@ -4,6 +4,43 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 
 
+def make_remote_merge_from_src(src: str) -> str:
+    """
+    Creates a remote and merge entry from the src string.
+    """
+    remotes = {}
+    merges = []
+
+    parts = src.split(" ", 1)
+    remotes["origin"] = parts[0]
+    merges.append(f"origin {parts[1]}")
+
+    return remotes, merges
+
+
+def get_origin_type(origin_value: str) -> OriginType:
+    """
+    Determines the origin type based on the origin value.
+
+    Args:
+        origin_value: The origin string to evaluate.
+
+    Returns:
+        The corresponding OriginType.
+    """
+    # Pattern to match GitHub PR references: refs/pull/{pr_id}/head
+    pr_pattern = re.compile(r"^refs/pull/\d+/head$")
+    # Pattern to match that matches git reference hashes (40 hex characters)
+    ref_pattern = re.compile(r"^[a-z0-9]{40}$")
+
+    if pr_pattern.match(origin_value):
+        return OriginType.PR
+    elif ref_pattern.match(origin_value):
+        return OriginType.REF
+    else:
+        return OriginType.BRANCH
+
+
 class OriginType(Enum):
     """Type of origin reference."""
 
@@ -39,12 +76,14 @@ class ModuleSpec:
         origins: Optional[List[ModuleOrigin]] = None,
         shell_commands: Optional[List[str]] = None,
         patch_globs_to_apply: Optional[List[str]] = None,
+        target_folder: Optional[str] = None,
     ):
         self.modules = modules
         self.remotes = remotes
         self.origins = origins
         self.shell_commands = shell_commands
         self.patch_globs_to_apply = patch_globs_to_apply
+        self.target_folder = None
 
     def __repr__(self) -> str:
         return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.origins})"
@@ -58,29 +97,6 @@ class ProjectSpec:
 
     def __repr__(self) -> str:
         return f"ProjectSpec(specs={self.specs})"
-
-
-def get_origin_type(origin_value: str) -> OriginType:
-    """
-    Determines the origin type based on the origin value.
-
-    Args:
-        origin_value: The origin string to evaluate.
-
-    Returns:
-        The corresponding OriginType.
-    """
-    # Pattern to match GitHub PR references: refs/pull/{pr_id}/head
-    pr_pattern = re.compile(r"^refs/pull/\d+/head$")
-    # Pattern to match that matches git reference hashes (40 hex characters)
-    ref_pattern = re.compile(r"^[a-z0-9]{40}$")
-
-    if pr_pattern.match(origin_value):
-        return OriginType.PR
-    elif ref_pattern.match(origin_value):
-        return OriginType.REF
-    else:
-        return OriginType.BRANCH
 
 
 def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
@@ -108,8 +124,14 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
 
             # Parse merges into ModuleOrigin objects
             origins: List[ModuleOrigin] = []
+            if src:
+                # If src is defined, create a remote and merge entry from it
+                src_remotes, src_merges = make_remote_merge_from_src(src)
+                remotes.update(src_remotes)
+                merges = src_merges + merges
+
             for merge_entry in merges:
-                parts = merge_entry.split(" ", 1)
+                parts = merge_entry.split(" ", 2)
                 if len(parts) == 2:
                     remote_key = parts[0]
                     origin_value = parts[1]
@@ -118,22 +140,13 @@ def load_spec_file(file_path: str) -> Optional[ProjectSpec]:
                     origin_type = get_origin_type(origin_value)
 
                     origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
+                if len(parts) == 3 and remote_key not in remotes:
+                    remote_key = parts[0]
+                    origin_value = parts[2]
 
-            # Decompose src into remote and origin, then add to remotes and origins
-            if src:
-                parts = src.split(" ", 1)
-                if len(parts) == 2:
-                    remote_url = parts[0]
-                    origin_value = parts[1]
-
-                    # Add to remotes dict
-                    remotes["origin"] = remote_url
-
-                    # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
                     origin_type = get_origin_type(origin_value)
 
-                    # Add to origins list
-                    origins.append(ModuleOrigin("origin", origin_value, origin_type))
+                    origins.append(ModuleOrigin(remote_key, origin_value, origin_type))
 
             specs[section_name] = ModuleSpec(
                 modules,

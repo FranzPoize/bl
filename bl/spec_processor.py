@@ -10,6 +10,7 @@ from rich.live import Live
 from rich.console import Console
 from .spec_parser import ProjectSpec, ModuleSpec, ModuleOrigin, OriginType
 
+BASE_DEPTH_VALUE = 10000
 
 console = Console()
 
@@ -23,6 +24,7 @@ warnings.simplefilter("default", DeprecationWarning)
 
 
 english_env = os.environ.copy()
+# Ensure git outputs in English for consistent parsing
 english_env["LANG"] = "en_US.UTF-8"
 
 
@@ -73,7 +75,7 @@ class SpecProcessor:
 
     def __init__(self, workdir: Path, concurrency: int = 4):
         self.workdir = workdir
-        self.modules_dir = workdir / "modules"
+        self.modules_dir = workdir / "external-src"
         self.cache_dir = workdir / "_cache"
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
@@ -82,6 +84,17 @@ class SpecProcessor:
         """Returns a unique cache path for a given remote URL."""
         url_hash = hashlib.sha256(remote_url.encode()).hexdigest()[:12]
         return self.cache_dir / url_hash
+
+    def get_module_path(self, module_name: str, module_spec: ModuleSpec) -> Path:
+        """Returns the path to the module directory."""
+        if module_name == "odoo" and module_spec.target_folder is None:
+            console.print(
+                "[yellow]Warning:[/] importing 'odoo' without a target_folder "
+                + "property is deprecated. Use target_folder: 'src/' in spec.yaml."
+            )
+            return self.workdir / "src/"
+        else:
+            return self.workdir / "external-src" / module_name
 
     async def run_git(self, *args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
         """Executes a git command asynchronously."""
@@ -124,6 +137,23 @@ class SpecProcessor:
                 return -1
         return 0
 
+    async def deepen_fetch(
+        self,
+        remote_url: str,
+        origin: str,
+        local_ref: str,
+        module_path: Path,
+        depth: str,
+    ) -> tuple[int, str, str]:
+        await self.run_git(
+            "fetch",
+            "--deepen",
+            depth,
+            remote_url,
+            f"{origin}:{local_ref}",
+            cwd=module_path,
+        )
+
     async def try_merge(
         self,
         progress: Progress,
@@ -140,26 +170,24 @@ class SpecProcessor:
                 task_id, status=f"Merging {local_ref} into {base_origin.origin} (attempt {i + 2})...", advance=0.1
             )
             ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+
+            if "CONFLICT" in out:
+                progress.update(task_id, status=f"[purple]Merge conflict while merging {origin.origin}")
+                return ret, out, err
+
             if ret != 0:
                 await self.run_git("merge", "--abort", cwd=module_path)
 
-                if "CONFLICT" in out:
-                    progress.update(task_id, status=f"[purple]Merge conflict while merging {origin.origin}")
-                    return ret, out, err
-
-                depth = str(10000 ** (i + 1))
+                depth = str(BASE_DEPTH_VALUE ** (i + 1))
                 progress.update(task_id, status=f"[yellow]Deepening fetch to depth {depth}...")
-                ret, out, err_2 = await self.run_git(
-                    "fetch",
-                    "--deepen",
-                    depth,
+                fetch_origin = origin.origin
+                await self.deepen_fetch(
                     remote_url,
-                    f"{origin.origin}:{local_ref}",
-                    cwd=module_path,
+                    fetch_origin,
+                    local_ref,
+                    module_path,
+                    depth,
                 )
-                if ret != 0:
-                    progress.update(task_id, status=f"[red]Deepen fetch failed: {err}")
-                    return ret, out, err
             else:
                 return ret, out, err
 
@@ -171,10 +199,10 @@ class SpecProcessor:
             cwd=module_path,
         )
         if ret != 0:
-            progress.update(task_id, status=f"[red]Deepen fetch failed while merging {local_ref}: {err}")
+            progress.update(task_id, status=f"[red]epen fetch failed while merging {local_ref}: {err}")
             return ret, out, err
-        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
 
+        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
         if ret != 0:
             progress.update(task_id, status=f"[red]Merge conflict in {origin.origin}: {err}")
             # In case of conflict, we might want to abort the merge
@@ -191,14 +219,11 @@ class SpecProcessor:
         async with self.semaphore:
             task_id = progress.add_task(f"[cyan]{name}", status="Waiting...", total=total_steps)
             try:
-                if name == "odoo":
-                    module_path = self.workdir / "src/"
-                else:
-                    module_path = self.modules_dir / name
-
                 if not spec.origins:
                     progress.update(task_id, status="[yellow]No origins defined", completed=1)
                     return -1
+
+                module_path = self.get_module_path(name, spec)
 
                 # 1. Initialize with first origin
                 base_origin = spec.origins[0]
@@ -269,9 +294,18 @@ class SpecProcessor:
 
                     for origin in spec.origins[1:]:
                         local_ref = _get_local_ref(origin)
+                        # This is probably the best thing but for now this works good enough
+                        # TODO(franz): find something better
                         ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
 
                 if name != "odoo":
+                    # We don't do sparse checkout for odoo because the odoo repo does not work at
+                    # all like the other repos (modules are in addons/ and src/addons/) instead of
+                    # at the root of the repo
+
+                    # TODO(franz): there is probably a way to make it work, but for now we skip it
+                    # this is probably a good way to gain performance
+
                     # 2. Sparse Checkout setup
                     progress.update(task_id, status="Configuring sparse checkout...")
                     await self.run_git("sparse-checkout", "init", "--cone", cwd=module_path)
