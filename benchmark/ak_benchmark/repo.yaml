@@ -1,0 +1,799 @@
+./external-src/account-analytic:
+  merges:
+  - origin 4dd40b17ecc42c6f13ba7bcecbfad0479c7c2a76
+  remotes:
+    origin: https://github.com/OCA/account-analytic
+  target: origin 14.0
+./external-src/account-closing:
+  merges:
+  - origin 09da210cbe6f35b726bd533eef2a8348d082fdb0
+  remotes:
+    origin: https://github.com/OCA/account-closing
+  target: origin 14.0
+./external-src/account-closing-account_cutoff_accrual_subscription:
+  merges:
+  - origin 09da210cbe6f35b726bd533eef2a8348d082fdb0
+  remotes:
+    origin: https://github.com/OCA/account-closing
+  target: origin 14.0
+./external-src/account-closing-account_multicurrency_revaluation:
+  merges:
+  - origin 09da210cbe6f35b726bd533eef2a8348d082fdb0
+  remotes:
+    origin: https://github.com/OCA/account-closing
+  target: origin 14.0
+./external-src/account-finacial-tools-asset-mngmt:
+  merges:
+  - origin 6dbe0f6a38e17fd0f23e01b04369bae9a899d551
+  remotes:
+    origin: https://github.com/OCA/account-financial-tools
+  target: origin 14.0
+./external-src/account-financial-reporting:
+  merges:
+  - origin c89b720c735123b554db196eab2b596232c60e2a
+  remotes:
+    origin: https://github.com/OCA/account-financial-reporting
+  target: origin 14.0
+./external-src/account-financial-tools:
+  merges:
+  - origin 6dbe0f6a38e17fd0f23e01b04369bae9a899d551
+  remotes:
+    origin: https://github.com/OCA/account-financial-tools
+  target: origin 14.0
+./external-src/account-financial-tools-lock-move:
+  merges:
+  - origin 9e1ffe955149dbd4333d4294c07a6a080aa08cb2
+  remotes:
+    origin: https://github.com/akretion/account-financial-tools
+  target: origin 14-rewrite-account_permanent_lock_move
+./external-src/account-financial-tools_account_partner_required:
+  merges:
+  - origin 43129ff18a6665e2c94e6d647c307660814a0698
+  remotes:
+    origin: https://github.com/akretion/account-financial-tools
+  target: origin 14-mig-account_partner_required
+./external-src/account-invoice-reporting:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/OCA/account-invoice-reporting
+  target: origin 14.0
+./external-src/account-invoicing:
+  merges:
+  - origin fbc68ceb5208ac2c3828502f35dc7c1e91e08ad2
+  remotes:
+    origin: https://github.com/OCA/account-invoicing
+  target: origin 14.0
+./external-src/account-move-import:
+  merges:
+  - origin 15d779f5625918f0b35af8cee119dc1001301c17
+  remotes:
+    origin: https://github.com/akretion/account-move-import
+  target: origin 14.0
+./external-src/account-payment:
+  merges:
+  - origin 2fa6b886306f96d7ca1abf1a8a4a042bd756960f
+  remotes:
+    origin: https://github.com/OCA/account-payment
+  target: origin 14.0
+./external-src/account-payment-cash-discount-write-off:
+  merges:
+  - origin 346f1569f2f29133dfa7a41da7b18d364f741297
+  remotes:
+    origin: https://github.com/akretion/account-payment
+  target: origin 14.0-cash-discount-reconcile-write-off
+./external-src/account-payment-gift-card:
+  merges:
+  - origin 7ad8ead29e5c6c73da76dd38aaf71fa75d620bd1
+  remotes:
+    origin: https://github.com/akretion/account-payment
+  target: origin 14.0_ADD_account_gift_card_payment-refactor
+./external-src/account-payment-gift-invoice-refund:
+  merges:
+  - oca 2fa6b886306f96d7ca1abf1a8a4a042bd756960f
+  - ak 405a1aaeb7825637da321ac17ad17734f487307a
+  remotes:
+    ak: https://github.com/akretion/account-payment
+    oca: https://github.com/OCA/account-payment
+  target: oca merged
+./external-src/account-peppol-backport:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/acsone/odoo-peppol-backport
+  target: origin 14.0
+./external-src/account-peppol-backport-backport-naptr:
+  merges:
+  - origin 14.0-account_peppol_backport-naptr
+  remotes:
+    origin: https://github.com/akretion/odoo-peppol-backport
+  target: origin 14.0-account_peppol_backport-naptr
+./external-src/account-reconcile:
+  merges:
+  - origin e56b578aa9185f33a34799fdd16d315f5cb408f5
+  remotes:
+    origin: https://github.com/OCA/account-reconcile
+  target: origin 14.0
+./external-src/ak-odoo-incubator:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/akretion/ak-odoo-incubator
+  target: origin 14.0
+./external-src/bank-payment:
+  merges:
+  - origin 1c08bea3c5bbef781b8736d43f71044bcd5e76df
+  remotes:
+    origin: https://github.com/OCA/bank-payment
+  target: origin 14.0
+./external-src/bank-payment-partner:
+  merges:
+  - origin 14.0-account_payment_partner-backport-comput-partner-bank-id-from16
+  remotes:
+    origin: https://github.com/akretion/bank-payment
+  target: origin 14.0-account_payment_partner-backport-comput-partner-bank-id-from16
+./external-src/bank-statement-import:
+  merges:
+  - origin 2a69e2e37a2f729f184963c8cf6ec307c5a126d4
+  remotes:
+    origin: https://github.com/OCA/bank-statement-import
+  target: origin 14.0
+./external-src/calendar:
+  merges:
+  - oca 835959c5b7e959ad0d49091820d921544c4ec505
+  - ak 320f7d5ee67509c110e219f35059747bed79a610
+  remotes:
+    ak: https://github.com/akretion/calendar
+    oca: https://github.com/OCA/calendar
+  target: oca merged
+./external-src/community-data-files:
+  merges:
+  - origin 397ffa9fc058835bae700c0c9399eb1d39e074f2
+  remotes:
+    origin: https://github.com/OCA/community-data-files
+  target: origin 14.0
+./external-src/connector:
+  merges:
+  - origin 30531a2131ee9cb9168216310f280fae0827771d
+  remotes:
+    origin: https://github.com/OCA/connector
+  target: origin 14.0
+./external-src/connector-telephony:
+  merges:
+  - origin 0a3ca15043ac304e8d8c6cad074334dedcc2a090
+  remotes:
+    origin: https://github.com/OCA/connector-telephony
+  target: origin 14.0
+./external-src/credit-control:
+  merges:
+  - oca edf1a0c4b8bd56e140cf6bd426ea8381233e4521
+  - ak b2947f29ea2e718412bf3536e240e8cb7e307885
+  remotes:
+    ak: https://github.com/akretion/credit-control
+    oca: https://github.com/OCA/credit-control
+  target: oca merged
+./external-src/ddmrp:
+  merges:
+  - origin 39f93439bb9395d0b82a373d5e5a862c9aebc089
+  remotes:
+    origin: https://github.com/oca/ddmrp
+  target: origin 14.0
+./external-src/delivery-carrier:
+  merges:
+  - origin 537c6564b4af12a1fca543f13f25e0440ca85e52
+  remotes:
+    origin: https://github.com/oca/delivery-carrier
+  target: origin 14.0
+./external-src/delivery-carrier_roulier:
+  merges:
+  - origin 0bff7061fcab5435acad5e7537542b0931089057
+  remotes:
+    origin: https://github.com/akretion/delivery-carrier
+  target: origin 14.0-delivery-roulier-mondialrelay
+./external-src/edi:
+  merges:
+  - origin 629125c3fcf897a91965495b1fa333e798d28e40
+  remotes:
+    origin: https://github.com/OCA/edi
+  target: origin 14.0
+./external-src/helpdesk:
+  merges:
+  - oca d23219ac9a7821262635a1525d4836d64409e001
+  - ak 24952f575f08f6c4243ac5c796114ba121b3cfc8
+  remotes:
+    ak: https://github.com/akretion/helpdesk
+    oca: https://github.com/OCA/helpdesk
+  target: oca merged
+./external-src/helpdesk-reopen:
+  merges:
+  - origin 14.0-mig-helpdesk_reopen
+  remotes:
+    origin: https://github.com/akretion/helpdesk
+  target: origin 14.0-mig-helpdesk_reopen
+./external-src/helpdesk-rest-api:
+  merges:
+  - origin 14.0-add-rest_api
+  remotes:
+    origin: https://github.com/akretion/helpdesk
+  target: origin 14.0-add-rest_api
+./external-src/helpdesk-sale:
+  merges:
+  - origin 14.0-helpdesk_sale
+  remotes:
+    origin: https://github.com/akretion/helpdesk
+  target: origin 14.0-helpdesk_sale
+./external-src/intrastat-extrastat:
+  merges:
+  - origin fb7610bc68c10aaef3e045708b82d3253b976d55
+  remotes:
+    origin: https://github.com/OCA/intrastat-extrastat
+  target: origin 14.0
+./external-src/knowledge:
+  merges:
+  - origin 7bd8c295fa839075ccbb0b36e29b78071daa6002
+  remotes:
+    origin: https://github.com/OCA/knowledge
+  target: origin 14.0
+./external-src/l10n-belgium:
+  merges:
+  - origin 685f29771d6aeadae7a366f5e1e1af4339273522
+  remotes:
+    origin: https://github.com/OCA/l10n-belgium
+  target: origin 14.0
+./external-src/mis-builder:
+  merges:
+  - origin f97bd58e9b6f503f977effbc97408d8971e693b2
+  remotes:
+    origin: https://github.com/oca/mis-builder
+  target: origin 14.0
+./external-src/mrp:
+  merges:
+  - origin 14fa6717ad28e8df1355f4f8f04837f2428d0271
+  remotes:
+    origin: https://github.com/oca/manufacture
+  target: origin 14.0
+./external-src/noukies:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: git@github.com:akretion/noukies-modules.git
+  target: origin 14.0
+./external-src/noukies-belotus:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: git@github.com:akretion/noukies-modules.git
+  target: origin 14.0
+./external-src/noukies-public:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: git@github.com:akretion/noukies-modules.git
+  target: origin 14.0
+./external-src/noukies-public-peppol:
+  merges:
+  - origin peppol-env
+  remotes:
+    origin: git@github.com:akretion/noukies-modules.git
+  target: origin peppol-env
+./external-src/noviat-apps:
+  merges:
+  - noviat 14.0
+  - ak 14.0-l10n_be_coa_multilang
+  remotes:
+    ak: https://github.com/akretion/noviat-apps-fork
+    noviat: https://github.com/Noviat/noviat-apps
+  target: noviat merged
+./external-src/odoo-import-helper:
+  merges:
+  - origin f1fd4e6a1c7e81d588d3b8d9256210462851177f
+  remotes:
+    origin: https://github.com/akretion/odoo-import-helper
+  target: origin 14.0
+./external-src/odoo-import-helper-storage_image:
+  merges:
+  - origin a3657442df4ac15e61f1ad8317621efcb2df4217
+  remotes:
+    origin: https://github.com/akretion/odoo-import-helper
+  target: origin 14.0-mig-storage_image_product_import
+./external-src/odoo-usability:
+  merges:
+  - origin ad8edd00d205f7adb919e33461d4328f2bf04a11
+  remotes:
+    origin: https://github.com/akretion/odoo-usability
+  target: origin 14.0
+./external-src/odoo-usability-account-usability:
+  merges:
+  - ak ad8edd00d205f7adb919e33461d4328f2bf04a11
+  - ak 955cda6957c897b370d05c7bbb6345cc49f597bf
+  remotes:
+    ak: https://github.com/akretion/odoo-usability
+  target: ak merged
+./external-src/odoo-usability-sale-partner-shipping-id-domain:
+  merges:
+  - origin 8707c2af5d71d6d2a3dbf4dbede9fdffd613db3c
+  remotes:
+    origin: https://github.com/akretion/odoo-usability
+  target: origin 14.0-sale_partner_shipping_id_domain
+./external-src/partner-contact:
+  merges:
+  - origin d0954f9bd16e6e7d79df556827c2c483124242e2
+  remotes:
+    origin: https://github.com/OCA/partner-contact
+  target: origin 14.0
+./external-src/partner-contact_address_default:
+  merges:
+  - origin da77c957170b03aaa23f88298ee6cad4b9a8f7cf
+  remotes:
+    origin: https://github.com/akretion/partner-contact
+  target: origin 14.0-fix-partner_contact_address_default
+./external-src/partner-module-information:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/akretion/partner-module-information
+  target: origin 14.0
+./external-src/pattern-import-export:
+  merges:
+  - origin 63ac1421d851cafbf08625c44cc0b7618fb422c0
+  remotes:
+    origin: https://github.com/shopinvader/pattern-import-export
+  target: origin 14.0
+./external-src/pim:
+  merges:
+  - origin cef90119c0bed594bbd0029ef7d65b0dea3c076f
+  remotes:
+    origin: https://github.com/OCA/odoo-pim
+  target: origin 14.0
+./external-src/pos:
+  merges:
+  - oca 0d0137a7915b0956e09c8f76a5fe18b5bff1d957
+  - ak 16d8ee3e4c91433ec58658d3ec37285300a7d7e8
+  - ak 173a3a053ec3bd80d6fd9327b809e6e467bad210
+  remotes:
+    ak: https://github.com/akretion/pos
+    oca: https://github.com/OCA/pos
+  target: oca merged
+./external-src/pos-backend-partner:
+  merges:
+  - origin 21c6cfbc2c6ddce4e0b94bf4834b51345c7f7d2e
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-mig-pos_backend_partner-rebased
+./external-src/pos-gift-cards:
+  merges:
+  - origin 8c2310d497917b40e8c08079a70eab75498272d7
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-add-pos_gift_card
+./external-src/pos-no-preload:
+  merges:
+  - origin 25c9aa468798f841bdc52a67fd55ade27e074443
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-pos_no_preload_product_image
+./external-src/pos-pricelist-show-discount:
+  merges:
+  - origin 3936668e281aa63fd6409f290bdd656664eab8b0
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-add-pos_show_discount_from_pricelist
+./external-src/pos-remove-pos-category:
+  merges:
+  - origin 99f72fd950518c6fc112ceb442222e7336df9897
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-mig-pos_repove_pos_category-rebased
+./external-src/pos-require-customer:
+  merges:
+  - origin e23c910999d6fad4b4893511bd23f49d9173eaba
+  remotes:
+    origin: https://github.com/akretion/pos
+  target: origin 14.0-add-pos_require_customer
+./external-src/pos-sale-order:
+  merges:
+  - ak 964a2a1170fc379ec09be09a2a93eb087cf953c4
+  - ak e24e546384e6bc907b0cdbfac3842f15706396f3
+  - ak 0f086acd30daefab5f12fbce94e55104c574e36d
+  - ak 41bcae747c9196ded332398dfb9a02d706680b8c
+  - ak 68b890e99dcb0c5cc6b42aecb1797193e56edd01
+  - ak 70f9fbf58a72e3e3bd08e89866466370a5abec37
+  - ak a32359a7d5a5e54879513d249f7328d8afde4898
+  - ak 765ae84de511844c3b70fa0b2ab61c2038da3816
+  - ak 2f8f98171c018d4528648ef0f1ba71b98b483110
+  - ak f9677e4806f6360948dc41bafb08d12ddf187c9b
+  - ak c19a094878332ce8da29cafa6950988e29b0b8d0
+  remotes:
+    ak: https://github.com/akretion/pos-sale-order
+  target: ak merged
+./external-src/product-attribute:
+  merges:
+  - origin b377db7617d8d3d4a2ce5cd58e4b5b545ec91ea6
+  remotes:
+    origin: https://github.com/OCA/product-attribute
+  target: origin 14.0
+./external-src/product-attribute-assortment:
+  merges:
+  - origin b377db7617d8d3d4a2ce5cd58e4b5b545ec91ea6
+  remotes:
+    origin: https://github.com/OCA/product-attribute
+  target: origin 14.0
+./external-src/product-attribute-backports:
+  merges:
+  - origin 14.0-product-logistics-uom-backports-18
+  remotes:
+    origin: https://github.com/akretion/product-attribute
+  target: origin 14.0-product-logistics-uom-backports-18
+./external-src/product-brand:
+  merges:
+  - origin d98569919aa5b4d9c27c69e3ec6f0d5cd4ea661b
+  remotes:
+    origin: https://github.com/OCA/brand
+  target: origin 14.0
+./external-src/product-variant:
+  merges:
+  - origin faddfac83f33d4604333152f10a4156a8b4ea49c
+  remotes:
+    origin: https://github.com/OCA/product-variant
+  target: origin 14.0
+./external-src/purchase-workflow:
+  merges:
+  - origin 9a2d19de38075ff6a985aa04094315de556925de
+  remotes:
+    origin: https://github.com/OCA/purchase-workflow
+  target: origin 14.0
+./external-src/purchase-workflow-13:
+  merges:
+  - origin 2db2623145d9f2d209337f863b5e15b8d1ca38ee
+  remotes:
+    origin: https://github.com/OCA/purchase-workflow
+  target: origin 13.0
+./external-src/purchase-workflow-freight:
+  merges:
+  - oca 9a2d19de38075ff6a985aa04094315de556925de
+  - ak 8742f8b12cbd4a0ad96540a6359e715077b5e5a6
+  remotes:
+    ak: https://github.com/akretion/purchase-workflow
+    oca: https://github.com/oca/purchase-workflow
+  target: oca merged
+./external-src/queue:
+  merges:
+  - oca 4c824c2f2ba9ad8e1573478020149d67aae63677
+  - ak cb8d84074d816ae8299ccacda18b2f914851fb70
+  - oca 210f95269b469ccd31087f997591bc2b55a8fe27
+  remotes:
+    ak: https://github.com/akretion/queue
+    oca: https://github.com/OCA/queue
+  target: ak merged
+./external-src/queue-job_chunk:
+  merges:
+  - origin 14-add-queue-job-chunk-backport-v16
+  remotes:
+    origin: https://github.com/akretion/queue
+  target: origin 14-add-queue-job-chunk-backport-v16
+./external-src/reporting-engine:
+  merges:
+  - origin 5f69af6f0292622ca731bb992177c6ab10cdea07
+  remotes:
+    origin: https://github.com/OCA/reporting-engine
+  target: origin 14.0
+./external-src/rest-framework:
+  merges:
+  - oca dfc9321032e9508182e4aff1f2e901dc1299a533
+  - ak 76277fd14d757819ad9f20a3df01530c7693c192
+  remotes:
+    ak: https://github.com/akretion/rest-framework
+    oca: https://github.com/OCA/rest-framework
+  target: oca merged
+./external-src/sale-channel:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/akretion/sale-import
+  target: origin 14.0
+./external-src/sale-channel-import_base:
+  merges:
+  - origin 14-sale-import-base-backport-v16-datamodel
+  remotes:
+    origin: https://github.com/akretion/sale-import
+  target: origin 14-sale-import-base-backport-v16-datamodel
+./external-src/sale-channel_new_fields:
+  merges:
+  - origin 14-sale-channel-add-type-company
+  remotes:
+    origin: https://github.com/akretion/sale-import
+  target: origin 14-sale-channel-add-type-company
+./external-src/sale-configurator:
+  merges:
+  - ak b1bc0ef62ea2fff7724d4119df608372d585aa26
+  - ak f4e27c84ef1fa891f725f2e44e647bcb11786044
+  - ak 3582c8905bebdcd1ed9e3ed93c63d702b87d55fc
+  - ak 0a5093b1b65b98943049ab947de184ebea3f6b45
+  - ak 31f57e681888ff7414f2011c8b9e2f27a68b4257
+  remotes:
+    ak: https://github.com/akretion/sale-configurator
+  target: ak merged
+./external-src/sale-import-amazon:
+  merges:
+  - origin 14.0-imp-sale-import-amazon-add-date-filtering-type
+  remotes:
+    origin: https://github.com/akretion/sale-import
+  target: origin 14.0-imp-sale-import-amazon-add-date-filtering-type
+./external-src/sale-promotion:
+  merges:
+  - oca 86aac6e3bc5de352289d8360d9a0032210a9b9c8
+  - oca 0d09e5ae99b3b53e373a0062e13055ae3cde0cdd
+  - oca 42c25cb5ea3be3e66de5adff0852d48b28222424
+  - oca 394818294f2e99c8721c193e116cb489d5f889e5
+  - oca 42a2cd96aa793788d43f3365da3d8721655a22ae
+  - oca f5e0e3816a009ab8aaf2b71121ca024f9effbaa0
+  - oca a814cd433da4e4ed4ac8347cce9922dd1a596fc6
+  - oca 743a451e70bc4de991cdae62dfc5ba8e159cde06
+  - oca 69d8f0da84bc5f6a93c6a763fb0a429a616578a9
+  - ak abf4ec838d17063a7b7ec3aa87d6c50eaeadf66d
+  - ak f525ce9490d3c64510693e77d5848365f423436c
+  - ak 24b547edc6b1c95aa9418e224955f902df2d916e
+  - ak e097876e32a60490b10dcedcb34755299d4ef5ee
+  remotes:
+    ak: https://github.com/akretion/sale-promotion
+    oca: https://github.com/OCA/sale-promotion
+  target: oca merged
+./external-src/sale-promotion-giftcard:
+  merges:
+  - origin 4a8ef2737120dc6365137dc9617011889ea7e0d6
+  remotes:
+    origin: https://github.com/akretion/sale-promotion
+  target: origin 14.0_ADD_gift_card-refactor
+./external-src/sale-workflow:
+  merges:
+  - oca 4a1a19e8de8cd137cc5f6facdb60304d09a68560
+  - oca 6f24f5cb389f4d3363d836c5207ebe4a6b89c733
+  - ak 7d61a34293a797099b75b8c062f04f3b23d2f448
+  - ak 5cdaf5696c84d36bace6c6e02a61bafbe8ee4f9b
+  remotes:
+    ak: https://github.com/akretion/sale-workflow
+    oca: https://github.com/OCA/sale-workflow
+  target: oca merged
+./external-src/sale-workflow-sale_automatic_workflow:
+  merges:
+  - origin 14.0-backport-imp-sale_automatic_workflow_add_send_invoice
+  remotes:
+    origin: https://github.com/akretion/sale-workflow
+  target: origin 14.0-backport-imp-sale_automatic_workflow_add_send_invoice
+./external-src/sale-workflow-without_price:
+  merges:
+  - origin 0be4c668f28e72f85d67250744fc93dae9574b51
+  remotes:
+    origin: https://github.com/akretion/sale-workflow
+  target: origin 14.0-sale-order-report-without-price
+./external-src/sale-workflow_policy:
+  merges:
+  - origin b0d7aa263c0faca5118e83da2b262da00d40f45d
+  remotes:
+    origin: https://github.com/akretion/sale-workflow
+  target: origin 14.0-mig-sale_invoice_policy
+./external-src/search-engine:
+  merges:
+  - oca a2bc2ffafe7696a374f778c9bd797c3f3500b796
+  - ak 7a2de65e5e632c6b6d124099290023d2c5559373
+  - ak 2ab3cb0ae72d3e50beb38dd0469b532e168b0572
+  - ak bc3e85e77cd6990adc0329417535647ad87897e3
+  remotes:
+    ak: https://github.com/akretion/search-engine
+    oca: https://github.com/OCA/search-engine
+  target: oca merged
+./external-src/server-auth:
+  merges:
+  - oca a0ff28d9293e3473255dcb3ef48cda618d56cbc2
+  - oca refs/pull/626/head
+  - ak e3c8317cb021693d80e74fc5f92407697489ce6d
+  remotes:
+    ak: https://github.com/akretion/server-auth
+    oca: https://github.com/OCA/server-auth
+  target: oca merged
+./external-src/server-auth-oidc:
+  merges:
+  - origin 516e2f58aa1f7687858f88402d002950b24af1f2
+  remotes:
+    origin: https://github.com/akretion/server-auth
+  target: origin 14.0-mig-auth_oidc
+./external-src/server-backend:
+  merges:
+  - origin 516daae4803080211ec8d82790eb172a66a2254a
+  remotes:
+    origin: https://github.com/OCA/server-backend
+  target: origin 14.0
+./external-src/server-brand:
+  merges:
+  - origin f9c7654f34f2ffd5282d33d18646759f76c2b3ab
+  remotes:
+    origin: https://github.com/oca/server-brand
+  target: origin 14.0
+./external-src/server-env:
+  merges:
+  - origin 2ba0fa5ccfeca2d515d2ae33704e78f39a1ad555
+  remotes:
+    origin: https://github.com/OCA/server-env
+  target: origin 14.0
+./external-src/server-env-data:
+  merges:
+  - origin 14-data_encryption_binary
+  remotes:
+    origin: https://github.com/akretion/server-env
+  target: origin 14-data_encryption_binary
+./external-src/server-tools:
+  merges:
+  - oca 14.0
+  - oca refs/pull/2816/head
+  remotes:
+    oca: https://github.com/OCA/server-tools
+  target: oca merged
+./external-src/server-tools-base_view_inheritence:
+  merges:
+  - origin 1ea4f749b190aec40559cf2e07ee3f30f72b9da7
+  remotes:
+    origin: https://github.com/akretion/server-tools
+  target: origin 14-mig-base_view_inheritance_extension
+./external-src/server-tools-onchange_helper:
+  merges:
+  - origin ee78090b9deaf48d4fde8c0178324f12678ccbd2
+  remotes:
+    origin: https://github.com/akretion/server-tools
+  target: origin 14.0-imp-onchange_helper_firstcall
+./external-src/server-tools-sentry:
+  merges:
+  - origin e51ab249300c83b9e8b80adc8f0beb2438cc08a3
+  remotes:
+    origin: https://github.com/akretion/server-tools
+  target: origin 14.0-apm-sentry-rebased
+./external-src/server-ux:
+  merges:
+  - origin 6be63704e33451275174a2c9ee371a41f3533dcd
+  remotes:
+    origin: https://github.com/OCA/server-ux
+  target: origin 14.0
+./external-src/server-ux-multisearch_field:
+  merges:
+  - origin 14.0-Multisearch_field
+  remotes:
+    origin: https://github.com/akretion/server-ux
+  target: origin 14.0-Multisearch_field
+./external-src/shopinvader:
+  merges:
+  - shopinvader 24db2919264748ae1e0874dff78a74e0e9f4e590
+  - ak 3e32d4d379d2beab20480edd350feb81dd5663dc
+  - ak 14.0-add-states-to-countries
+  - ak 14.0-authenticated_partner_id
+  - ak db4e9e3aadf89283f5132001ed10a329e06b7fbc
+  - ak 83a96c148981344467f9994e1c9e13f5a8814142
+  - ak 8c129de4a110c982485af249f8090a81b0fa7775
+  - shopinvader 9311692d368de69d26390c73281b33ebe81507c0
+  - ak cbf2ce53b5f225df97b960c00fbf064d08df3f18
+  - shopinvader aeb51e2165b3e6144d771dd794ead9a0da4ecc9d
+  - ak 992044f98cbb77743e1190d346fe9617a1c2bdbd
+  - ak dc184132672226616585ee6b7c3bc08007faafdd
+  - shopinvader 6aeab483600922410865a00d382a63591fb32efa
+  - shopinvader 494b8b2234e43396116f01d639bd2a7182d257fa
+  - shopinvader 0fb54f17bec906f9b8f732d9c13cb8d6332ce45a
+  - shopinvader refs/pull/1537/head
+  remotes:
+    ak: https://github.com/akretion/odoo-shopinvader
+    shopinvader: https://github.com/shopinvader/odoo-shopinvader
+  target: shopinvader merged
+./external-src/shopinvader-customer-delivery:
+  merges:
+  - origin 244a0a2384b2a8a87e3ad9ddd66433fc8ffea5a2
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader
+  target: origin 14.0-add_shopinvader_customer_delivery-add-client_order_ref
+./external-src/shopinvader-gift-card:
+  merges:
+  - origin 45da8d373e27ba1896e389f8f672215c0df05a3b
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader
+  target: origin 14.0_ADD_shopinvader_gift_card-refactor
+./external-src/shopinvader-invoice:
+  merges:
+  - origin shopinvader_invoice-add-scoped-search
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader
+  target: origin shopinvader_invoice-add-scoped-search
+./external-src/shopinvader-payment:
+  merges:
+  - ak ab63a04f8927fb1b69ffd667efa7639df53d8dbb
+  - ak f0756bd87d91a3619830f4ee9d4773d766226320
+  - ak e5fa201e4b1334bb6d4eaca3454810e950b61bcd
+  - ak refs/pull/3/head
+  remotes:
+    ak: https://github.com/akretion/odoo-shopinvader-payment
+  target: ak merged
+./external-src/shopinvader-payment-gift-card:
+  merges:
+  - origin 4ee83e0417577ef8c33545d2981033842275cd1f
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader-payment
+  target: origin 14.0_ADD_shopinvader_payment_gift_card-refactor
+./external-src/shopinvader-payment-manual:
+  merges:
+  - origin ad8ee05b2b29d194b94b7b68e9869c64175314cf
+  remotes:
+    origin: https://github.com/shopinvader/odoo-shopinvader-payment
+  target: origin 14.0
+./external-src/shopinvader_helpdesk:
+  merges:
+  - origin 9e0cbc5036fa0440410a76b3b7157694eef15c69
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader
+  target: origin 14.0-add-shopinvader_helpdesk
+./external-src/shopinvader_sale_order_report_without_price:
+  merges:
+  - origin 317bf8962e5b809afe24010f09d96a0fc4efda65
+  remotes:
+    origin: https://github.com/akretion/odoo-shopinvader
+  target: origin 14.0-sale-order-report-without-price
+./external-src/social:
+  merges:
+  - origin 8571d889923f2014a9295200dfe754cfb9f2352d
+  remotes:
+    origin: https://github.com/OCA/social
+  target: origin 14.0
+./external-src/stock-logistics-barcode:
+  merges:
+  - origin 945d3995e51356a5d1e281d61ae714c83212c8ba
+  remotes:
+    origin: https://github.com/oca/stock-logistics-barcode
+  target: origin 14.0
+./external-src/stock-logistics-warehouse:
+  merges:
+  - origin cfeb7caf1459aab8cd7ef860fd15ae8f697d69c2
+  remotes:
+    origin: https://github.com/oca/stock-logistics-warehouse
+  target: origin 14.0
+./external-src/stock-logistics-workflow:
+  merges:
+  - oca 92293c26468d2fae4c6ca2d8fe59424a4490a6a4
+  - ak f7509d25ff1c35518d17e13d8efa3ccac4da2cf0
+  remotes:
+    ak: https://github.com/akretion/stock-logistics-workflow
+    oca: https://github.com/OCA/stock-logistics-workflow
+  target: oca merged
+./external-src/stock-logistics-workflow-stock-landed-cost-product-logistics-uom:
+  merges:
+  - origin 14-add-stock-landed-cost-product-logistics-uom
+  remotes:
+    origin: https://github.com/akretion/stock-logistics-workflow
+  target: origin 14-add-stock-landed-cost-product-logistics-uom
+./external-src/storage:
+  merges:
+  - oca 14.0
+  - ak 14.0-target-proper-directory
+  remotes:
+    ak: https://github.com/akretion/storage
+    oca: https://github.com/OCA/storage
+  target: oca merged
+./external-src/storage_backend_s3:
+  merges:
+  - origin 70096f4a0f7739345ab9121cd10907b6c7b571c4
+  remotes:
+    origin: https://github.com/akretion/storage
+  target: origin 14.0-storage_backend_s3-fix-empty-delete
+./external-src/support:
+  merges:
+  - origin 14.0
+  remotes:
+    origin: https://github.com/akretion/support
+  target: origin 14.0
+./external-src/web:
+  merges:
+  - origin 86175e8fab920890a1c08b9fa0e0aafdd27938dd
+  remotes:
+    origin: https://github.com/OCA/web
+  target: origin 14.0
+src:
+  merges:
+  - odoo c0acceab75c23460c7d9ad6cafcd65ce795cea9f
+  remotes:
+    odoo: https://github.com/odoo/odoo
+  shell_command_after:
+  - git am ../patches/odoo/*
+  target: odoo merged

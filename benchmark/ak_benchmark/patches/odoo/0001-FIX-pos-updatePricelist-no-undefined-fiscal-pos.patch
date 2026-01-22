@@ -1,0 +1,31 @@
+From c0562321572538d171b8b08329168d94e4758c05 Mon Sep 17 00:00:00 2001
+From: Pierrick Brun <pierrick.brun@akretion.com>
+Date: Tue, 7 Jun 2022 15:44:21 +0200
+Subject: [PATCH] [FIX] pos: updatePricelist -> no undefined fiscal pos
+
+---
+ addons/point_of_sale/static/src/js/models.js | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/addons/point_of_sale/static/src/js/models.js b/addons/point_of_sale/static/src/js/models.js
+index f29083a6943..4467e522cc5 100644
+--- a/addons/point_of_sale/static/src/js/models.js
++++ b/addons/point_of_sale/static/src/js/models.js
+@@ -3528,11 +3528,10 @@ exports.Order = Backbone.Model.extend({
+             (position) => position.id === this.pos.config.default_fiscal_position_id[0]
+         );
+         if (newClient) {
+-            newClientFiscalPosition = newClient.property_account_position_id
+-                ? this.pos.fiscal_positions.find(
++            newClientFiscalPosition =
++                this.pos.fiscal_positions.find(
+                       (position) => position.id === newClient.property_account_position_id[0]
+-                  )
+-                : defaultFiscalPosition;
++                  ) || defaultFiscalPosition;
+             newClientPricelist =
+                 this.pos.pricelists.find(
+                     (pricelist) => pricelist.id === newClient.property_product_pricelist[0]
+-- 
+2.45.2
+
