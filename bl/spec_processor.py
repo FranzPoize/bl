@@ -1,15 +1,17 @@
 import asyncio
-import os
 import hashlib
+import os
 import warnings
 from pathlib import Path
-from typing import List, Dict, Optional, Any
-from typing_extensions import deprecated
-from rich.progress import MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
-from rich.live import Live
-from rich.table import Table
+from typing import Any, Dict, List, Optional
+
 from rich.console import Console
-from .spec_parser import ProjectSpec, ModuleSpec, RefspecInfo, OriginType
+from rich.live import Live
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
+from rich.table import Table
+from typing_extensions import deprecated
+
+from .spec_parser import ModuleSpec, OriginType, ProjectSpec, RefspecInfo
 
 BASE_DEPTH_VALUE = 10000
 
@@ -150,7 +152,7 @@ class SpecProcessor:
         module_path: Path,
         depth: str,
     ) -> tuple[int, str, str]:
-        await self.run_git(
+        return await self.run_git(
             "fetch",
             "--deepen",
             depth,
@@ -167,7 +169,7 @@ class SpecProcessor:
         local_ref: str,
         module_path: Path,
         origin: RefspecInfo,
-    ) -> bool:
+    ) -> tuple[int, str, str]:
         ret, out, err = await self.run_git(
             "merge", "--allow-unrelated-histories", "--no-edit", local_ref, cwd=module_path
         )
@@ -221,7 +223,7 @@ class SpecProcessor:
 
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
-    ) -> None:
+    ) -> int:
         """Processes a single ModuleSpec."""
         total_steps = len(spec.refspec_info) if spec.refspec_info else 1
 
@@ -236,7 +238,7 @@ class SpecProcessor:
 
                 # 1. Initialize with first origin
                 root_refspec_info = spec.refspec_info[0]
-                remote_url = (spec.remotes or {}).get(root_refspec_info.remote) or root_refspec_info.remote
+                remote_url = spec.remotes.get(root_refspec_info.remote) or root_refspec_info.remote
                 base_frozen_sha = root_refspec_info.frozen_sha
                 if DEBUG_FREEZES and base_frozen_sha:
                     console.print(
@@ -374,7 +376,7 @@ class SpecProcessor:
                         advance=0.1,
                     )
 
-                    remote_url = (spec.remotes or {}).get(refspec_info.remote) or refspec_info.remote
+                    remote_url = spec.remotes.get(refspec_info.remote) or refspec_info.remote
 
                     local_ref = _get_local_ref(refspec_info)
                     remote_ref = refspec_info.refspec
@@ -433,6 +435,7 @@ class SpecProcessor:
 
             except Exception as e:
                 progress.update(task_id, status=f"[red]Error: {str(e)}")
+                return -1
 
     async def process_project(self, project_spec: ProjectSpec) -> None:
         """Processes all modules in a ProjectSpec."""
@@ -477,8 +480,8 @@ class SpecProcessor:
             await asyncio.gather(*tasks)
 
 
-async def process_project(project_spec: ProjectSpec, workdir: Path, concurrency: int = 4) -> None:
+async def process_project(project_spec: ProjectSpec, concurrency: int = 4) -> None:
     """Helper function to run the SpecProcessor."""
-    processor = SpecProcessor(workdir, concurrency)
+    processor = SpecProcessor(project_spec.workdir, concurrency)
     # project_spec.specs = {name: spec for name, spec in project_spec.specs.items() if name == "sale-workflow"}
     await processor.process_project(project_spec)

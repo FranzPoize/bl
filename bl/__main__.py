@@ -1,18 +1,29 @@
+import argparse
+import asyncio
 import sys
+from pathlib import Path
+
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
-from pathlib import Path
-import asyncio
 
 
 def run():
-    # Example usage:
-    file_name = sys.argv[1] if len(sys.argv) > 1 else "spec.yaml"
-    concurrentio = int(sys.argv[2]) if len(sys.argv) > 2 else 16
-    spec_file = file_name
-    project_spec = load_spec_file(spec_file)
-    if project_spec is not None:
-        asyncio.run(process_project(project_spec, workdir=Path("."), concurrency=concurrentio))
+    parser = argparse.ArgumentParser(
+        description="Process a project specification.", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
+    )
+    parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
+    parser.add_argument("-j", "--concurrency", type=int, default=16, help="Number of concurrent tasks.")
+    parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
+    args = parser.parse_args()
+
+    project_spec = load_spec_file(args.config, args.frozen, args.workdir)
+    if project_spec is None:
+        sys.exit(1)
+
+    asyncio.run(process_project(project_spec, concurrency=args.concurrency))
 
 
 if __name__ == "__main__":
