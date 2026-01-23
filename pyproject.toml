@@ -15,7 +15,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff",
     "kalong",

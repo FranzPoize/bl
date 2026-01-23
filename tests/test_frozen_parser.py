@@ -48,7 +48,7 @@ def test_frozen_sha_populated_from_mapping() -> None:
         spec_path.write_text(yaml.safe_dump(spec_data))
         frozen_path.write_text(yaml.safe_dump(frozen_mapping))
 
-        project = load_spec_file(str(spec_path))
+        project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None, "ProjectSpec should not be None"
 
         sale = project.specs["sale-promotion"]
@@ -102,7 +102,7 @@ def test_frozen_modules_none_when_section_missing() -> None:
         spec_path.write_text(yaml.safe_dump(spec_data))
         frozen_path.write_text(yaml.safe_dump(frozen_mapping))
 
-        project = load_spec_file(str(spec_path))
+        project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None
 
         queue = project.specs["queue"]
@@ -144,7 +144,7 @@ def test_frozen_sha_none_when_refspec_missing() -> None:
         spec_path.write_text(yaml.safe_dump(spec_data))
         frozen_path.write_text(yaml.safe_dump(frozen_mapping))
 
-        project = load_spec_file(str(spec_path))
+        project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None
 
         sale = project.specs["sale-promotion"]
