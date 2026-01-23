@@ -120,9 +120,7 @@ class SpecProcessor:
     @deprecated(
         "run_shell_commands is deprecated if used to apply patches. Use patch_globs properties in spec.yaml instead."
     )
-    async def run_shell_commands(
-        self, progress: Progress, task_id: TaskID, spec: ModuleSpec, module_path: Path
-    ) -> None:
+    async def run_shell_commands(self, progress: Progress, task_id: TaskID, spec: ModuleSpec, module_path: Path) -> int:
         for cmd in spec.shell_commands:
             progress.update(task_id, status=f"Running shell command: {cmd}...")
             proc = await asyncio.create_subprocess_shell(
@@ -202,6 +200,7 @@ class SpecProcessor:
             else:
                 return ret, out, err
 
+        # If all retries failed, attempt unshallow fetch and final merge
         ret, out, err = await self.run_git(
             "fetch",
             "--unshallow",
@@ -210,7 +209,7 @@ class SpecProcessor:
             cwd=module_path,
         )
         if ret != 0:
-            progress.update(task_id, status=f"[red]epen fetch failed while merging {local_ref}: {err}")
+            progress.update(task_id, status=f"[red]Deepen fetch failed while merging {local_ref}: {err}")
             return ret, out, err
 
         ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
@@ -281,11 +280,11 @@ class SpecProcessor:
                         )
 
                     if ret != 0:
-                        progress.update(
-                            task_id,
-                            status=f"[red]Clone failed {root_refspec_info.remote}({remote_url})/{root_refspec_info.refspec}"
-                            + f" -> {module_path}:\n{err}",
+                        status_message = (
+                            f"[red]Clone failed {root_refspec_info.remote}({remote_url})/{root_refspec_info.refspec}"
+                            + f" -> {module_path}:\n{err}"
                         )
+                        progress.update(task_id, status=status_message)
                         return ret
                 else:
                     ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
@@ -436,6 +435,7 @@ class SpecProcessor:
             except Exception as e:
                 progress.update(task_id, status=f"[red]Error: {str(e)}")
                 return -1
+        return 0
 
     async def process_project(self, project_spec: ProjectSpec) -> None:
         """Processes all modules in a ProjectSpec."""

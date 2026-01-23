@@ -88,10 +88,10 @@ async def test_processor_honors_frozen_sha_for_branch() -> None:
         spec_path.write_text(yaml.safe_dump(spec_data))
         frozen_path.write_text(yaml.safe_dump(frozen_mapping))
 
-        project = load_spec_file(str(spec_path))
+        project = load_spec_file(spec_path, frozen_path, workdir)
         assert project is not None
 
-        await process_project(project, workdir=workdir, concurrency=1)
+        await process_project(project, concurrency=1)
 
         # After processing, the checked-out repository should be at the frozen SHA
         module_repo = workdir / "external-src" / "test-module"
