@@ -1,0 +1,50 @@
+From 05abaf1376fe61a0652b9e1a4824109b3fc748ac Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?S=C3=A9bastien=20BEAU?= <sebastien.beau@akretion.com>
+Date: Mon, 30 May 2022 22:41:41 +0200
+Subject: [PATCH] account: remove broken feature that commit in the middle of
+ the transaction
+
+---
+ .../account/models/account_bank_statement.py  | 26 ++++++++++++-------
+ 1 file changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/addons/account/models/account_bank_statement.py b/addons/account/models/account_bank_statement.py
+index 6652950acf8..1cbf2bc76ff 100644
+--- a/addons/account/models/account_bank_statement.py
++++ b/addons/account/models/account_bank_statement.py
+@@ -419,16 +419,22 @@ class AccountBankStatement(models.Model):
+             # Chatter.
+             statement.message_post(body=_('Statement %s confirmed.', statement.name))
+ 
+-            # Bank statement report.
+-            if statement.journal_id.type == 'bank':
+-                content, content_type = self.env.ref('account.action_report_account_statement')._render(statement.id)
+-                self.env['ir.attachment'].create({
+-                    'name': statement.name and _("Bank Statement %s.pdf", statement.name) or _("Bank Statement.pdf"),
+-                    'type': 'binary',
+-                    'datas': base64.encodebytes(content),
+-                    'res_model': statement._name,
+-                    'res_id': statement.id
+-                })
++            # Remove broken feature when closing pos session
++            # When priting report if the asset do not exist odoo will commit the
++            # asset (in order to be accessible from the controller for wkhtmltopdf)
++            # So this mean that Odoo will commit all the data of the current transaction
++            # so the current transaction is not transactionnal
++            # TODO open a bug in V16
++
++            #if statement.journal_id.type == 'bank':
++            #    content, content_type = self.env.ref('account.action_report_account_statement')._render(statement.id)
++            #    self.env['ir.attachment'].create({
++            #        'name': statement.name and _("Bank Statement %s.pdf", statement.name) or _("Bank Statement.pdf"),
++            #        'type': 'binary',
++            #        'datas': base64.encodebytes(content),
++            #        'res_model': statement._name,
++            #        'res_id': statement.id
++            #    })
+ 
+         self._check_balance_end_real_same_as_computed()
+         self.write({'state': 'confirm', 'date_done': fields.Datetime.now()})
+-- 
+2.45.2
+

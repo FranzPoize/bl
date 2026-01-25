@@ -33,14 +33,25 @@ english_env["LANG"] = "en_US.UTF-8"
 DEBUG_FREEZES = os.environ.get("BL_DEBUG_FREEZES") == "1"
 
 
+# for single branch we should clone shallow but for other we should clone
+# with tree:0 filter and because this avoid confusing fetch for git to have the history
+# before fetching
+
+
+def clone_single_branch():
+    pass
+
+
+def clone_multiple_branch():
+    pass
+
+
 def create_clone_args(base_origin: RefspecInfo, remote_url: str) -> List[str]:
     """Creates git clone arguments based on the base origin."""
     args = [
         "clone",
         "--no-checkout",
-        "--filter=blob:none",
-        "--depth",
-        "1",
+        "--filter=tree:0",
     ]
 
     if base_origin.type == OriginType.REF:
@@ -477,6 +488,7 @@ class SpecProcessor:
                     )
                 )
 
+            # this should error if a task crashes
             await asyncio.gather(*tasks)
 
 
