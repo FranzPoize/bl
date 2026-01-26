@@ -352,7 +352,7 @@ class SpecProcessor:
                         progress, task_id, spec, refspec_info, root_refspec_info, module_path
                     )
                     if ret != 0:
-                        progress.update(f"[red]Merge failed: {err}")
+                        progress.update(task_id, status=f"[red]Merge failed from {refspec_info.refspec}: {err}")
                         return -1
 
                 if spec.shell_commands:
