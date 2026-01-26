@@ -367,6 +367,7 @@ class SpecProcessor:
             return ret
 
         progress.advance(task_id)
+        return 0
 
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
