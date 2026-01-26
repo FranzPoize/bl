@@ -15,7 +15,7 @@ def run():
         "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
     )
     parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
-    parser.add_argument("-j", "--concurrency", type=int, default=16, help="Number of concurrent tasks.")
+    parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
     parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
     args = parser.parse_args()
 
