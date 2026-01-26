@@ -23,7 +23,10 @@ def run():
     if project_spec is None:
         sys.exit(1)
 
-    asyncio.run(process_project(project_spec, concurrency=args.concurrency))
+    try:
+        asyncio.run(process_project(project_spec, concurrency=args.concurrency))
+    except Exception:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

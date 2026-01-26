@@ -421,11 +421,13 @@ class SpecProcessor:
                 )
 
             # this should error if a task crashes
-            await asyncio.gather(*tasks)
+            return_codes = await asyncio.gather(*tasks)
+            if any(return_codes):
+                raise Exception()
 
 
 async def process_project(project_spec: ProjectSpec, concurrency: int = 4) -> None:
     """Helper function to run the SpecProcessor."""
     processor = SpecProcessor(project_spec.workdir, concurrency)
     # project_spec.specs = {name: spec for name, spec in project_spec.specs.items() if name == "sale-workflow"}
-    await processor.process_project(project_spec)
+    return await processor.process_project(project_spec)
