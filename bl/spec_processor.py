@@ -31,8 +31,6 @@ english_env = os.environ.copy()
 # Ensure git outputs in English for consistent parsing
 english_env["LANG"] = "en_US.UTF-8"
 
-DEBUG_FREEZES = os.environ.get("BL_DEBUG_FREEZES") == "1"
-
 
 # for single branch we should clone shallow but for other we should clone
 # with tree:0 filter and because this avoid confusing fetch for git to have the history
@@ -112,11 +110,6 @@ class SpecProcessor:
         self.cache_dir = workdir / "_cache"
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
-
-    def _get_cache_path(self, remote_url: str) -> Path:
-        """Returns a unique cache path for a given remote URL."""
-        url_hash = hashlib.sha256(remote_url.encode()).hexdigest()[:12]
-        return self.cache_dir / url_hash
 
     def get_module_path(self, module_name: str, module_spec: ModuleSpec) -> Path:
         """Returns the path to the module directory."""
