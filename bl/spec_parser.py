@@ -60,20 +60,16 @@ class RefspecInfo:
         remote: str,
         ref_str: str,
         type: OriginType,
-        frozen_sha: Optional[str] = None,
+        ref_name: Optional[str],
     ):
         self.remote = remote
         self.refspec = ref_str
         """ The refspec string (branch name, PR ref, or commit hash). """
         self.type = type
-        self.frozen_sha = frozen_sha
+        self.ref_name = ref_name
 
     def __repr__(self) -> str:
-        return (
-            "RefspecInfo("
-            f"remote={self.remote!r}, origin={self.refspec!r}, type={self.type.value}, "
-            f"frozen_sha={self.frozen_sha!r})"
-        )
+        return f"RefspecInfo(remote={self.remote!r}, origin={self.refspec!r}, type={self.type.value})"
 
 
 class ModuleSpec:
@@ -180,22 +176,25 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
         for merge_entry in merges:
             parts = merge_entry.split(" ", 2)
             if len(parts) == 2:
-                remote_key, origin_value = parts
+                remote_key, ref_spec = parts
 
                 # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
-                origin_type = get_origin_type(origin_value)
+                ref_type = get_origin_type(ref_spec)
 
-                frozen_sha = None
+                ref_name = None
                 if frozen_for_section:
                     remote_freezes = frozen_for_section.get(remote_key) or {}
-                    frozen_sha = remote_freezes.get(origin_value)
+                    ref_name = ref_spec
+                    ref_type = OriginType.REF
+                    frozen_ref = remote_freezes.get(ref_spec)
+                    ref_spec = frozen_ref or ref_spec
 
                 origins.append(
                     RefspecInfo(
                         remote_key,
-                        origin_value,
-                        origin_type,
-                        frozen_sha=frozen_sha,
+                        ref_spec,
+                        ref_type,
+                        ref_name,
                     )
                 )
             elif len(parts) == 3:
@@ -203,22 +202,16 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
                     "Deprecated src format: use <url> <sha> format for the src property",
                     DeprecationWarning,
                 )
-                remote_key, _, origin_value = parts
-                origin_type = get_origin_type(origin_value)
+                remote_key, _, ref_spec = parts
+                ref_type = get_origin_type(ref_spec)
 
-                frozen_sha = None
+                ref_name = None
                 if frozen_for_section:
                     remote_freezes = frozen_for_section.get(remote_key) or {}
-                    frozen_sha = remote_freezes.get(origin_value)
+                    ref_name = ref_spec
+                    ref_spec = remote_freezes.get(ref_spec)
 
-                origins.append(
-                    RefspecInfo(
-                        remote_key,
-                        origin_value,
-                        origin_type,
-                        frozen_sha=frozen_sha,
-                    )
-                )
+                origins.append(RefspecInfo(remote_key, ref_spec, ref_type, ref_name))
 
         specs[section_name] = ModuleSpec(
             modules,

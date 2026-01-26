@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+from logging import root
 import os
 import warnings
 from pathlib import Path
@@ -13,7 +14,7 @@ from typing_extensions import deprecated
 
 from .spec_parser import ModuleSpec, OriginType, ProjectSpec, RefspecInfo
 
-BASE_DEPTH_VALUE = 10000
+BASE_DEPTH_VALUE = 100
 
 console = Console()
 
@@ -46,26 +47,35 @@ def clone_multiple_branch():
     pass
 
 
-def create_clone_args(base_origin: RefspecInfo, remote_url: str) -> List[str]:
+def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str) -> List[str]:
     """Creates git clone arguments based on the base origin."""
     args = [
         "clone",
-        "--no-checkout",
         "--filter=tree:0",
     ]
 
-    if base_origin.type == OriginType.REF:
+    if name == "odoo":
+        args += [
+            "--depth",
+            "1",
+        ]
+    else:
+        args += [
+            "--no-checkout",
+        ]
+
+    if ref_spec_info.type == OriginType.REF:
         args += [
             "--revision",
-            base_origin.frozen_sha or base_origin.refspec,
+            ref_spec_info.refspec,
         ]
     else:
         args += [
             "--origin",
-            base_origin.remote,
+            ref_spec_info.remote,
             "--single-branch",
             "--branch",
-            base_origin.refspec,
+            ref_spec_info.refspec,
         ]
 
     args += [
@@ -75,7 +85,14 @@ def create_clone_args(base_origin: RefspecInfo, remote_url: str) -> List[str]:
     return args
 
 
-def _get_local_ref(origin: RefspecInfo) -> str:
+def normalize_merge_result(ret: int, out: str, err: str):
+    if "CONFLICT" in out:
+        return -1, out
+
+    return ret, err
+
+
+def get_local_ref(origin: RefspecInfo) -> str:
     """Generates a local reference name for a given origin."""
     if origin.type == OriginType.PR:
         pr_id = origin.refspec.split("/")[-2]
@@ -104,9 +121,11 @@ class SpecProcessor:
     def get_module_path(self, module_name: str, module_spec: ModuleSpec) -> Path:
         """Returns the path to the module directory."""
         if module_name == "odoo" and module_spec.target_folder is None:
-            console.print(
-                "[yellow]Warning:[/] importing 'odoo' without a 'target_folder' "
-                + "property is deprecated. Use target_folder: 'src/' in spec.yaml."
+            console.print()
+            warnings.warn(
+                "importing 'odoo' without a 'target_folder' "
+                + "property is deprecated. Use target_folder: 'src/' in spec.yaml.",
+                DeprecationWarning,
             )
             return self.workdir / "src/"
         elif module_spec.target_folder is not None:
@@ -170,6 +189,28 @@ class SpecProcessor:
             cwd=module_path,
         )
 
+    async def clone_base_repo_ref(
+        self, name: str, ref_spec_info: RefspecInfo, remote_url: str, module_path: Path
+    ) -> tuple[int, str, str]:
+        args = create_clone_args(name, ref_spec_info, remote_url)
+
+        ret, out, err = await self.run_git(
+            *args,
+            str(module_path),
+        )
+
+        # if it's a ref we need to manually create a base branch because we cannot
+        # merge in a detached head
+        if ref_spec_info.type == OriginType.REF:
+            ret, out, err = await self.run_git(
+                "checkout",
+                "-b",
+                ref_spec_info.ref_name or ref_spec_info.refspec[:10],
+                cwd=str(module_path),
+            )
+
+        return ret, out, err
+
     async def try_merge(
         self,
         progress: Progress,
@@ -178,45 +219,41 @@ class SpecProcessor:
         local_ref: str,
         module_path: Path,
         origin: RefspecInfo,
-    ) -> tuple[int, str, str]:
-        ret, out, err = await self.run_git(
-            "merge", "--allow-unrelated-histories", "--no-edit", local_ref, cwd=module_path
-        )
-
-        if ret == 0:
-            return ret, out, err
+    ) -> tuple[int, str]:
         # Merge
-        for i in range(2):
-            ret, out, err = await self.run_git(
-                "merge", "--allow-unrelated-histories", "--no-edit", local_ref, cwd=module_path
+        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+        ret, err = normalize_merge_result(ret, out, err)
+        if ret == 0:
+            return ret, err
+
+        if "CONFLICT" in err:
+            progress.update(task_id, status=f"[red]Merge conflict in {origin.refspec}: {err}")
+            return ret, err
+
+        for i in range(3):
+            await self.run_git("merge", "--abort", cwd=module_path)
+
+            depth = str(BASE_DEPTH_VALUE ** (i + 1))
+            progress.update(task_id, status=f"[yellow]Deepening fetch to depth {depth}...")
+            await self.deepen_fetch(
+                remote_url,
+                origin.refspec,
+                local_ref,
+                module_path,
+                depth,
             )
 
-            if "CONFLICT" in out:
-                progress.update(task_id, status=f"[purple]Merge conflict while merging {origin.refspec}")
-                return ret, out, err
-
-            if ret != 0:
-                await self.run_git("merge", "--abort", cwd=module_path)
-
-                depth = str(BASE_DEPTH_VALUE ** (i + 1))
-                progress.update(task_id, status=f"[yellow]Deepening fetch to depth {depth}...")
-                remote_refspec = origin.frozen_sha or origin.refspec
-                await self.deepen_fetch(
-                    remote_url,
-                    remote_refspec,
-                    local_ref,
-                    module_path,
-                    depth,
-                )
-            else:
-                return ret, out, err
+            ret, _, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+            ret, err = normalize_merge_result(ret, out, err)
+            if ret == 0:
+                return ret, err
 
         # If all retries failed, attempt unshallow fetch and final merge
         ret, out, err = await self.run_git(
             "fetch",
             "--unshallow",
             remote_url,
-            f"{origin.frozen_sha or origin.refspec}:{local_ref}",
+            f"{origin.refspec}:{local_ref}",
             cwd=module_path,
         )
         if ret != 0:
@@ -224,12 +261,112 @@ class SpecProcessor:
             return ret, out, err
 
         ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
-        if ret != 0:
+        ret, err = normalize_merge_result(ret, out, err)
+        if "CONFLICT" in err:
             progress.update(task_id, status=f"[red]Merge conflict in {origin.refspec}: {err}")
             # In case of conflict, we might want to abort the merge
             await self.run_git("merge", "--abort", cwd=module_path)
 
-        return ret, out, err
+        return ret, err
+
+    async def setup_new_repo(
+        self,
+        progress: Progress,
+        task_id: TaskID,
+        name: str,
+        root_refspec_info: RefspecInfo,
+        remote_url: str,
+        module_path: Path,
+    ):
+        progress.update(
+            task_id,
+            status=(f"Cloning {root_refspec_info.remote}/{root_refspec_info.refspec}"),
+        )
+
+        # Clone shallowly with blobless filter and no checkout
+        # We don't use the cache yet for simplicity, but we follow the optimized command
+        # User --revision for specific commit checkout if needed
+        ret, out, err = await self.clone_base_repo_ref(name, root_refspec_info, remote_url, module_path)
+
+        if ret != 0:
+            status_message = (
+                f"[red]Clone failed {root_refspec_info.remote}({remote_url})/{root_refspec_info.refspec}"
+                + f" -> {module_path}:\n{err}"
+            )
+            progress.update(task_id, status=status_message)
+            return ret
+
+    async def reset_repo_for_work(
+        self, progress: Progress, task_id: TaskID, spec: ModuleSpec, root_refspec_info: RefspecInfo, module_path: Path
+    ):
+        ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
+
+        if out != "":
+            progress.update(task_id, status=f"[red]Repo is dirty:\n{out}")
+            return ret
+        # Reset all the local origin to their remote origins
+        progress.update(
+            task_id,
+            status=(f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}"),
+        )
+
+        reset_target = f"{root_refspec_info.remote}/{root_refspec_info.refspec}"
+        ret, out, err = await self.run_git("reset", "--hard", reset_target, cwd=module_path)
+        if ret != 0:
+            progress.update(task_id, status=f"[red]Reset failed: {err}")
+            return ret
+
+        for refspec_info in spec.refspec_info[1:]:
+            local_ref = get_local_ref(refspec_info)
+            # This is probably the best thing but for now this works good enough
+            # TODO(franz): find something better
+            ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
+
+    async def merge_spec_into_tree(
+        self,
+        progress: Progress,
+        task_id: TaskID,
+        spec: ModuleSpec,
+        refspec_info: RefspecInfo,
+        root_refspec_info: RefspecInfo,
+        module_path: Path,
+    ):
+        progress.update(
+            task_id,
+            status=(
+                f"Merging {refspec_info.remote}/{refspec_info.refspec}"
+                + f" into {root_refspec_info.remote}/{root_refspec_info.refspec}..."
+            ),
+            advance=0.1,
+        )
+
+        # This is weird...
+        remote_url = spec.remotes.get(refspec_info.remote) or refspec_info.remote
+
+        local_ref = get_local_ref(refspec_info)
+        remote_ref = refspec_info.refspec
+
+        ret, out, err = await self.run_git(
+            "fetch", "--depth", "1", remote_url, f"{remote_ref}:{local_ref}", cwd=module_path
+        )
+
+        if ret != 0:
+            # Should not necessarily crash
+            progress.update(task_id, status=f"[red]Fetch failed for {refspec_info.refspec}")
+            return ret
+
+        # Try to merge
+        progress.update(
+            task_id,
+            status=f"Merging {local_ref} into {root_refspec_info.refspec}",
+            advance=0.1,
+        )
+        ret, err = await self.try_merge(progress, task_id, remote_url, local_ref, module_path, refspec_info)
+        if ret != 0:
+            progress.update(task_id, status="f[ref]Could not complete merge: {err}")
+            return ret
+
+        progress.advance(task_id)
 
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
@@ -249,94 +386,11 @@ class SpecProcessor:
                 # 1. Initialize with first origin
                 root_refspec_info = spec.refspec_info[0]
                 remote_url = spec.remotes.get(root_refspec_info.remote) or root_refspec_info.remote
-                base_frozen_sha = root_refspec_info.frozen_sha
-                if DEBUG_FREEZES and base_frozen_sha:
-                    console.print(
-                        f"[cyan]Using frozen base for {name}:[/] "
-                        f"{root_refspec_info.remote}/{root_refspec_info.refspec} -> {base_frozen_sha}"
-                    )
 
                 if not module_path.exists() or not module_path.is_dir():
-                    progress.update(
-                        task_id,
-                        status=(
-                            f"Cloning {root_refspec_info.remote}/{root_refspec_info.refspec}"
-                            + (f" (frozen {base_frozen_sha})" if base_frozen_sha else "")
-                        ),
-                    )
-
-                    # Clone shallowly with blobless filter and no checkout
-                    # We don't use the cache yet for simplicity, but we follow the optimized command
-                    # User --revision for specific commit checkout if needed
-                    if name == "odoo":
-                        ret, out, err = await self.run_git(
-                            "clone",
-                            "--filter=blob:none",
-                            "--depth",
-                            "1",
-                            "--origin",
-                            root_refspec_info.remote,
-                            "--single-branch",
-                            "--branch",
-                            root_refspec_info.refspec,
-                            remote_url,
-                            module_path,
-                        )
-                    else:
-                        args = create_clone_args(root_refspec_info, remote_url)
-
-                        ret, out, err = await self.run_git(
-                            *args,
-                            str(module_path),
-                        )
-
-                    if ret != 0:
-                        status_message = (
-                            f"[red]Clone failed {root_refspec_info.remote}({remote_url})/{root_refspec_info.refspec}"
-                            + f" -> {module_path}:\n{err}"
-                        )
-                        progress.update(task_id, status=status_message)
-                        return ret
+                    await self.setup_new_repo(progress, task_id, name, root_refspec_info, remote_url, module_path)
                 else:
-                    ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
-
-                    if out != "":
-                        progress.update(task_id, status=f"[red]Repo is dirty:\n{out}")
-                        return ret
-                    # Reset all the local origin to their remote origins
-                    progress.update(
-                        task_id,
-                        status=(
-                            f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}"
-                            + (f" (frozen {base_frozen_sha})" if base_frozen_sha else "")
-                        ),
-                    )
-
-                    if base_frozen_sha:
-                        fetch_ret, _, fetch_err = await self.run_git(
-                            "fetch", "--depth", "1", remote_url, base_frozen_sha, cwd=module_path
-                        )
-                        if fetch_ret != 0:
-                            progress.update(
-                                task_id,
-                                status=(
-                                    f"[yellow]Frozen fetch failed ({base_frozen_sha}); "
-                                    f"falling back to {root_refspec_info.refspec}"
-                                ),
-                            )
-                            base_frozen_sha = None
-
-                    reset_target = base_frozen_sha or f"{root_refspec_info.remote}/{root_refspec_info.refspec}"
-                    ret, out, err = await self.run_git("reset", "--hard", reset_target, cwd=module_path)
-                    if ret != 0:
-                        progress.update(task_id, status=f"[red]Reset failed: {err}")
-                        return ret
-
-                    for refspec_info in spec.refspec_info[1:]:
-                        local_ref = _get_local_ref(refspec_info)
-                        # This is probably the best thing but for now this works good enough
-                        # TODO(franz): find something better
-                        ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
+                    await self.reset_repo_for_work(progress, task_id, spec, root_refspec_info, module_path)
 
                 if name != "odoo":
                     # We don't do sparse checkout for odoo because the odoo repo does not work at
@@ -352,78 +406,16 @@ class SpecProcessor:
                     if spec.modules:
                         await self.run_git("sparse-checkout", "set", *spec.modules, cwd=module_path)
 
-                # 3. Checkout base (prefer frozen SHA if available)
-                checkout_target = base_frozen_sha or root_refspec_info.refspec
-
-                if base_frozen_sha:
-                    # Ensure the frozen commit is present (best effort)
-                    fetch_ret, _, fetch_err = await self.run_git(
-                        "fetch", "--depth", "1", remote_url, base_frozen_sha, cwd=module_path
-                    )
-                    if fetch_ret != 0:
-                        progress.update(
-                            task_id,
-                            status=(
-                                f"[yellow]Frozen fetch failed ({base_frozen_sha}); "
-                                f"using {root_refspec_info.refspec} instead"
-                            ),
-                        )
-                        checkout_target = root_refspec_info.refspec
+                checkout_target = root_refspec_info.refspec
 
                 await self.run_git("checkout", checkout_target, cwd=module_path)
-                if base_frozen_sha:
-                    progress.update(task_id, status=f"Checked out frozen {base_frozen_sha}", advance=0.1)
                 progress.advance(task_id)
 
                 # 4. Fetch and Merge remaining origins
                 for refspec_info in spec.refspec_info[1:]:
-                    progress.update(
-                        task_id,
-                        status=(
-                            f"Merging {refspec_info.remote}/{refspec_info.refspec}"
-                            + f" into {root_refspec_info.remote}/{root_refspec_info.refspec}..."
-                        ),
-                        advance=0.1,
+                    await self.merge_spec_into_tree(
+                        progress, task_id, spec, refspec_info, root_refspec_info, module_path
                     )
-
-                    remote_url = spec.remotes.get(refspec_info.remote) or refspec_info.remote
-
-                    local_ref = _get_local_ref(refspec_info)
-                    remote_ref = refspec_info.refspec
-
-                    if refspec_info.frozen_sha:
-                        if DEBUG_FREEZES:
-                            console.print(
-                                f"[cyan]Using frozen merge for {name}:[/] "
-                                f"{refspec_info.remote}/{refspec_info.refspec} -> {refspec_info.frozen_sha}"
-                            )
-                        progress.update(
-                            task_id, status=f"Applying frozen {refspec_info.frozen_sha} for {refspec_info.refspec}"
-                        )
-                        remote_ref = refspec_info.frozen_sha
-
-                    ret, out, err = await self.run_git(
-                        "fetch", "--depth", "1", remote_url, f"{remote_ref}:{local_ref}", cwd=module_path
-                    )
-
-                    if ret != 0:
-                        # Should not necessarily crash
-                        progress.update(task_id, status=f"[red]Fetch failed for {refspec_info.refspec}")
-                        return ret
-
-                    # Try to merge
-                    progress.update(
-                        task_id,
-                        status=f"Merging {local_ref} into {root_refspec_info.refspec}",
-                        advance=0.1,
-                    )
-                    ret, out, err = await self.try_merge(
-                        progress, task_id, remote_url, local_ref, module_path, refspec_info
-                    )
-                    if ret != 0:
-                        return ret
-
-                    progress.advance(task_id)
 
                 if spec.shell_commands:
                     ret = await self.run_shell_commands(progress, task_id, spec, module_path)
