@@ -45,21 +45,18 @@ def clone_multiple_branch():
     pass
 
 
-def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str) -> List[str]:
+def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, shallow: bool) -> List[str]:
     """Creates git clone arguments based on the base origin."""
     args = [
         "clone",
         "--filter=tree:0",
+        "--sparse",
     ]
 
-    if name == "odoo":
+    if name == "odoo" or shallow:
         args += [
             "--depth",
             "1",
-        ]
-    else:
-        args += [
-            "--no-checkout",
         ]
 
     if ref_spec_info.type == OriginType.REF:
@@ -71,7 +68,6 @@ def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str) ->
         args += [
             "--origin",
             ref_spec_info.remote,
-            "--single-branch",
             "--branch",
             ref_spec_info.refspec,
         ]
@@ -107,14 +103,12 @@ class SpecProcessor:
     def __init__(self, workdir: Path, concurrency: int = 4):
         self.workdir = workdir
         self.modules_dir = workdir / "external-src"
-        self.cache_dir = workdir / "_cache"
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
 
     def get_module_path(self, module_name: str, module_spec: ModuleSpec) -> Path:
         """Returns the path to the module directory."""
         if module_name == "odoo" and module_spec.target_folder is None:
-            console.print()
             warnings.warn(
                 "importing 'odoo' without a 'target_folder' "
                 + "property is deprecated. Use target_folder: 'src/' in spec.yaml.",
@@ -165,27 +159,23 @@ class SpecProcessor:
                 return -1
         return 0
 
-    async def deepen_fetch(
+    async def fetch_local_ref(
         self,
-        remote_url: str,
-        origin: str,
+        origin: RefspecInfo,
         local_ref: str,
         module_path: Path,
-        depth: str,
     ) -> tuple[int, str, str]:
         return await self.run_git(
             "fetch",
-            "--deepen",
-            depth,
-            remote_url,
-            f"{origin}:{local_ref}",
+            origin.remote,
+            f"{origin.refspec}:{local_ref}",
             cwd=module_path,
         )
 
     async def clone_base_repo_ref(
-        self, name: str, ref_spec_info: RefspecInfo, remote_url: str, module_path: Path
+        self, name: str, ref_spec_info: RefspecInfo, remote_url: str, module_path: Path, shallow: bool
     ) -> tuple[int, str, str]:
-        args = create_clone_args(name, ref_spec_info, remote_url)
+        args = create_clone_args(name, ref_spec_info, remote_url, shallow)
 
         ret, out, err = await self.run_git(
             *args,
@@ -213,64 +203,31 @@ class SpecProcessor:
         module_path: Path,
         origin: RefspecInfo,
     ) -> tuple[int, str]:
+        progress.update(task_id, status=f"Fetching {local_ref}", advance=0.1)
+        await self.fetch_local_ref(origin, local_ref, module_path)
         # Merge
+        # I think the idea would be to not fetch shallow but fetch treeless and do a merge-base
+        # then fetch the required data and then merge
+        progress.update(task_id, status=f"Merging {local_ref}", advance=0.1)
         ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
-        if ret == 0:
-            return ret, err
 
-        if "CONFLICT" in err:
-            progress.update(task_id, status=f"[red]Merge conflict in {origin.refspec}: {err}")
-            return ret, err
-
-        for i in range(3):
-            await self.run_git("merge", "--abort", cwd=module_path)
-
-            depth = str(BASE_DEPTH_VALUE ** (i + 1))
-            progress.update(task_id, status=f"[yellow]Deepening fetch to depth {depth}...")
-            await self.deepen_fetch(
-                remote_url,
-                origin.refspec,
-                local_ref,
-                module_path,
-                depth,
-            )
-
-            ret, _, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
-            ret, err = normalize_merge_result(ret, out, err)
-            if ret == 0:
-                return ret, err
-
-        # If all retries failed, attempt unshallow fetch and final merge
-        ret, out, err = await self.run_git(
-            "fetch",
-            "--unshallow",
-            remote_url,
-            f"{origin.refspec}:{local_ref}",
-            cwd=module_path,
-        )
-        if ret != 0:
-            progress.update(task_id, status=f"[red]Deepen fetch failed while merging {local_ref}: {err}")
-            return ret, err
-
-        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
-        ret, err = normalize_merge_result(ret, out, err)
         if "CONFLICT" in err:
             progress.update(task_id, status=f"[red]Merge conflict in {origin.refspec}: {err}")
             # In case of conflict, we might want to abort the merge
             await self.run_git("merge", "--abort", cwd=module_path)
-
         return ret, err
 
     async def setup_new_repo(
         self,
         progress: Progress,
         task_id: TaskID,
+        spec: ModuleSpec,
         name: str,
         root_refspec_info: RefspecInfo,
         remote_url: str,
         module_path: Path,
-    ):
+    ) -> int:
         progress.update(
             task_id,
             status=(f"Cloning {root_refspec_info.remote}/{root_refspec_info.refspec}"),
@@ -279,7 +236,8 @@ class SpecProcessor:
         # Clone shallowly with blobless filter and no checkout
         # We don't use the cache yet for simplicity, but we follow the optimized command
         # User --revision for specific commit checkout if needed
-        ret, out, err = await self.clone_base_repo_ref(name, root_refspec_info, remote_url, module_path)
+        shallow_clone = len(spec.refspec_info) == 1
+        ret, out, err = await self.clone_base_repo_ref(name, root_refspec_info, remote_url, module_path, shallow_clone)
 
         if ret != 0:
             status_message = (
@@ -291,7 +249,7 @@ class SpecProcessor:
 
     async def reset_repo_for_work(
         self, progress: Progress, task_id: TaskID, spec: ModuleSpec, root_refspec_info: RefspecInfo, module_path: Path
-    ):
+    ) -> int:
         ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
 
         if out != "":
@@ -315,6 +273,9 @@ class SpecProcessor:
             # TODO(franz): find something better
             ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
 
+    async def link_all_modules(self) -> tuple[int, str]:
+        return 0, ""
+
     async def merge_spec_into_tree(
         self,
         progress: Progress,
@@ -323,44 +284,19 @@ class SpecProcessor:
         refspec_info: RefspecInfo,
         root_refspec_info: RefspecInfo,
         module_path: Path,
-    ):
-        progress.update(
-            task_id,
-            status=(
-                f"Merging {refspec_info.remote}/{refspec_info.refspec}"
-                + f" into {root_refspec_info.remote}/{root_refspec_info.refspec}..."
-            ),
-            advance=0.1,
-        )
-
+    ) -> tuple[int, str]:
         # This is weird...
         remote_url = spec.remotes.get(refspec_info.remote) or refspec_info.remote
 
         local_ref = get_local_ref(refspec_info)
         remote_ref = refspec_info.refspec
 
-        ret, out, err = await self.run_git(
-            "fetch", "--depth", "1", remote_url, f"{remote_ref}:{local_ref}", cwd=module_path
-        )
-
-        if ret != 0:
-            # Should not necessarily crash
-            progress.update(task_id, status=f"[red]Fetch failed for {refspec_info.refspec}")
-            return ret
-
-        # Try to merge
-        progress.update(
-            task_id,
-            status=f"Merging {local_ref} into {root_refspec_info.refspec}",
-            advance=0.1,
-        )
         ret, err = await self.try_merge(progress, task_id, remote_url, local_ref, module_path, refspec_info)
         if ret != 0:
-            progress.update(task_id, status="f[ref]Could not complete merge: {err}")
-            return ret
+            return ret, err
 
         progress.advance(task_id)
-        return 0
+        return 0, ""
 
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
@@ -382,7 +318,7 @@ class SpecProcessor:
                 remote_url = spec.remotes.get(root_refspec_info.remote) or root_refspec_info.remote
 
                 if not module_path.exists() or not module_path.is_dir():
-                    await self.setup_new_repo(progress, task_id, name, root_refspec_info, remote_url, module_path)
+                    await self.setup_new_repo(progress, task_id, spec, name, root_refspec_info, remote_url, module_path)
                 else:
                     await self.reset_repo_for_work(progress, task_id, spec, root_refspec_info, module_path)
 
@@ -405,11 +341,19 @@ class SpecProcessor:
                 await self.run_git("checkout", checkout_target, cwd=module_path)
                 progress.advance(task_id)
 
+                for remote, remote_url in spec.remotes.items():
+                    await self.run_git("remote", "add", remote, remote_url, cwd=module_path)
+                    await self.run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
+                    await self.run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
+
                 # 4. Fetch and Merge remaining origins
                 for refspec_info in spec.refspec_info[1:]:
-                    await self.merge_spec_into_tree(
+                    ret, err = await self.merge_spec_into_tree(
                         progress, task_id, spec, refspec_info, root_refspec_info, module_path
                     )
+                    if ret != 0:
+                        progress.update(f"[red]Merge failed: {err}")
+                        return -1
 
                 if spec.shell_commands:
                     ret = await self.run_shell_commands(progress, task_id, spec, module_path)
@@ -432,6 +376,8 @@ class SpecProcessor:
             except Exception as e:
                 progress.update(task_id, status=f"[red]Error: {str(e)}")
                 return -1
+
+        ret, err = await self.link_all_modules()
         return 0
 
     async def process_project(self, project_spec: ProjectSpec) -> None:
