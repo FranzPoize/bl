@@ -258,7 +258,7 @@ class SpecProcessor:
         )
         if ret != 0:
             progress.update(task_id, status=f"[red]Deepen fetch failed while merging {local_ref}: {err}")
-            return ret, out, err
+            return ret, err
 
         ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
