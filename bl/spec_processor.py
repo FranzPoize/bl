@@ -390,10 +390,11 @@ class SpecProcessor:
                             return ret
 
                 progress.update(task_id, status="Linking directory")
-                ret, err = self.link_all_modules(symlink_modules, module_path)
-                if ret != 0:
-                    progress.update(task_id, status=f"[red]Could not link modules: {err}")
-                    return ret
+                if name != "odoo":
+                    ret, err = self.link_all_modules(symlink_modules, module_path)
+                    if ret != 0:
+                        progress.update(task_id, status=f"[red]Could not link modules: {err}")
+                        return ret
 
                 progress.update(task_id, status="[green]Complete")
                 progress.remove_task(task_id)
