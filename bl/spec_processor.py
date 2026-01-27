@@ -32,7 +32,13 @@ warnings.simplefilter("default", DeprecationWarning)
 # for single branch we should clone shallow but for other we should clone
 # with tree:0 filter and because this avoid confusing fetch for git to have the history
 # before fetching
-def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, shallow: bool) -> List[str]:
+def create_clone_args(
+    name: str,
+    ref_spec_info: RefspecInfo,
+    remote_url: str,
+    shallow: bool,
+    sparse: bool,
+) -> List[str]:
     """Creates git clone arguments based on the base origin."""
     args = [
         "clone",
@@ -44,7 +50,8 @@ def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, sh
             "--depth",
             "1",
         ]
-    else:
+
+    if sparse:
         args += ["--sparse"]
 
     if ref_spec_info.type == OriginType.REF:
@@ -123,9 +130,21 @@ class SpecProcessor:
         )
 
     async def clone_base_repo_ref(
-        self, name: str, ref_spec_info: RefspecInfo, remote_url: str, module_path: Path, shallow: bool
+        self,
+        name: str,
+        ref_spec_info: RefspecInfo,
+        remote_url: str,
+        module_path: Path,
+        shallow: bool,
+        sparse: bool,
     ) -> tuple[int, str, str]:
-        args = create_clone_args(name, ref_spec_info, remote_url, shallow)
+        args = create_clone_args(
+            name,
+            ref_spec_info,
+            remote_url,
+            shallow,
+            sparse,
+        )
 
         ret, out, err = await run_git(
             *args,
@@ -185,7 +204,15 @@ class SpecProcessor:
         # We don't use the cache yet for simplicity, but we follow the optimized command
         # User --revision for specific commit checkout if needed
         shallow_clone = len(spec.refspec_info) == 1
-        ret, out, err = await self.clone_base_repo_ref(name, root_refspec_info, remote_url, module_path, shallow_clone)
+        sparse_clone = name != "odoo" or len(spec.locales) > 0
+        ret, out, err = await self.clone_base_repo_ref(
+            name,
+            root_refspec_info,
+            remote_url,
+            module_path,
+            shallow_clone,
+            sparse_clone,
+        )
 
         if ret != 0:
             status_message = (
@@ -307,6 +334,23 @@ class SpecProcessor:
                 )
         return result
 
+    async def setup_odoo_sparse(self, module_spec: ModuleSpec, module_path: Path):
+        list_modules = module_spec.modules
+
+        await run_git("sparse-checkout", "init", "--no-cone", cwd=module_path)
+        included_po = [f"{locale}.po" for locale in module_spec.locales]
+        included_modules = [f"/addons/{module}/*" for module in list_modules]
+        await run_git(
+            "sparse-checkout",
+            "set",
+            "/*",
+            "!/addons/*",
+            *included_modules,
+            "!*.po",
+            *included_po,
+            cwd=module_path,
+        )
+
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
     ) -> int:
@@ -328,6 +372,8 @@ class SpecProcessor:
                 root_refspec_info = spec.refspec_info[0]
                 remote_url = spec.remotes.get(root_refspec_info.remote) or root_refspec_info.remote
 
+                # TODO(franz) the shallow and sparseness of repo should be unify
+                # so that we don't have all those stupid conditions
                 if not module_path.exists() or not module_path.is_dir():
                     await self.setup_new_repo(progress, task_id, spec, name, root_refspec_info, remote_url, module_path)
                 else:
@@ -346,6 +392,9 @@ class SpecProcessor:
                     await run_git("sparse-checkout", "init", "--cone", cwd=module_path)
                     if symlink_modules:
                         await run_git("sparse-checkout", "set", *spec.modules, cwd=module_path)
+                elif len(spec.locales) > 0:
+                    progress.update(task_id, status="Configuring sparse odoo checkout...")
+                    await self.setup_odoo_sparse(spec, module_path)
 
                 checkout_target = "merged"
 

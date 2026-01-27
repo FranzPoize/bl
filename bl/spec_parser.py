@@ -84,6 +84,7 @@ class ModuleSpec:
         patch_globs_to_apply: Optional[List[str]] = None,
         target_folder: Optional[str] = None,
         frozen_modules: Optional[Dict[str, Dict[str, str]]] = None,
+        locales: Optional[List[str]] = [],
     ):
         self.modules = modules
         self.remotes = remotes
@@ -91,7 +92,8 @@ class ModuleSpec:
         self.shell_commands = shell_commands
         self.patch_globs_to_apply = patch_globs_to_apply
         self.frozen_modules = frozen_modules
-        self.target_folder = None
+        self.target_folder = target_folder
+        self.locales = locales
 
     def __repr__(self) -> str:
         return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info})"
@@ -159,6 +161,8 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
         merges = section_data.get("merges") or []
         shell_commands = section_data.get("shell_command_after") or None
         patch_globs_to_apply = section_data.get("patch_globs") or None
+        target_folder = section_data.get("target_folder") or None
+        locales = section_data.get("locales", [])
 
         frozen_for_section_raw = frozen_mapping.get(section_name)
         frozen_for_section: Optional[Dict[str, Dict[str, str]]] = (
@@ -219,7 +223,9 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
             origins,
             shell_commands,
             patch_globs_to_apply,
-            frozen_modules=frozen_for_section or None,
+            target_folder,
+            frozen_for_section,
+            locales,
         )
 
     return ProjectSpec(specs, workdir)
