@@ -2,7 +2,9 @@ import asyncio
 import hashlib
 from logging import root
 import os
+from posix import link
 import warnings
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -35,14 +37,6 @@ english_env["LANG"] = "en_US.UTF-8"
 # for single branch we should clone shallow but for other we should clone
 # with tree:0 filter and because this avoid confusing fetch for git to have the history
 # before fetching
-
-
-def clone_single_branch():
-    pass
-
-
-def clone_multiple_branch():
-    pass
 
 
 def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, shallow: bool) -> List[str]:
@@ -118,7 +112,7 @@ class SpecProcessor:
         elif module_spec.target_folder is not None:
             return self.workdir / module_spec.target_folder
         else:
-            return self.workdir / "external-src" / module_name
+            return self.modules_dir / module_name
 
     async def run_git(self, *args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
         """Executes a git command asynchronously."""
@@ -203,8 +197,6 @@ class SpecProcessor:
         module_path: Path,
         origin: RefspecInfo,
     ) -> tuple[int, str]:
-        progress.update(task_id, status=f"Fetching {local_ref}", advance=0.1)
-        await self.fetch_local_ref(origin, local_ref, module_path)
         # Merge
         # I think the idea would be to not fetch shallow but fetch treeless and do a merge-base
         # then fetch the required data and then merge
@@ -273,7 +265,25 @@ class SpecProcessor:
             # TODO(franz): find something better
             ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
 
-    async def link_all_modules(self) -> tuple[int, str]:
+    async def link_all_modules(
+        self, progress: Progress, task_id: TaskID, module_list: List[str], module_path: Path
+    ) -> tuple[int, str]:
+        links_path = Path("links/")
+        links_path.mkdir(exist_ok=True)
+        for dir in os.listdir(links_path):
+            dir_path = links_path / dir
+            if dir_path.is_symlink():
+                dir_path.unlink()
+
+        for module_name in module_list:
+            try:
+                path_src_symlink = module_path / module_name
+                path_dest_symlink = links_path / module_name
+                os.symlink(path_src_symlink, path_dest_symlink, True)
+            except OSError as e:
+                progress.update(task_id, status=f"[red]Error creating symlink {path_src_symlink}: {e}")
+                return -1, str(e)
+
         return 0, ""
 
     async def merge_spec_into_tree(
@@ -298,11 +308,52 @@ class SpecProcessor:
         progress.advance(task_id)
         return 0, ""
 
+    def get_refspec_by_remote(self, refspec_info_list: List[RefspecInfo]) -> Dict[str, List[RefspecInfo]]:
+        result = {}
+
+        for spec in refspec_info_list:
+            spec_list = result.get(spec.remote, [])
+            spec_list.append(spec)
+            result[spec.remote] = spec_list
+
+        return result
+
+    async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
+        args = [
+            "fetch",
+            "-j",
+            str(self.concurrency),
+            remote,
+        ]
+
+        for refspec_info in refspec_info_list:
+            local_ref = get_local_ref(refspec_info)
+            args += [f"{refspec_info.refspec}:{local_ref}"]
+
+        ret, out, err = await self.run_git(*args, cwd=module_path)
+
+        return ret, out, err
+
+    def filter_non_link_module(self, spec: ModuleSpec):
+        result = []
+        for module in spec.modules:
+            path = Path("links") / module
+            if path.is_symlink() or not path.exists():
+                result.append(module)
+            else:
+                console.print(
+                    f"[purple]Watchout ![/] {module} is not a symlink and will be assumed "
+                    + "to be a local module\nIt will not be fetched or linked"
+                )
+        return result
+
     async def process_module(
         self, name: str, spec: ModuleSpec, progress: Progress, count_progress: Progress, count_task: TaskID
     ) -> int:
         """Processes a single ModuleSpec."""
-        total_steps = len(spec.refspec_info) if spec.refspec_info else 1
+        total_steps = len(spec.refspec_info) + 1 if spec.refspec_info else 1
+
+        symlink_modules = self.filter_non_link_module(spec)
 
         async with self.semaphore:
             task_id = progress.add_task(f"[cyan]{name}", status="Waiting...", total=total_steps)
@@ -333,7 +384,7 @@ class SpecProcessor:
                     # 2. Sparse Checkout setup
                     progress.update(task_id, status="Configuring sparse checkout...")
                     await self.run_git("sparse-checkout", "init", "--cone", cwd=module_path)
-                    if spec.modules:
+                    if symlink_modules:
                         await self.run_git("sparse-checkout", "set", *spec.modules, cwd=module_path)
 
                 checkout_target = root_refspec_info.refspec
@@ -345,6 +396,15 @@ class SpecProcessor:
                     await self.run_git("remote", "add", remote, remote_url, cwd=module_path)
                     await self.run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
                     await self.run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
+
+                # TODO(franz) fetch and merge should be done separately
+                # fetch can be done in parallel by git with -j X and putting several refspec as parameters
+                # to git fetch
+                refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(spec.refspec_info[1:])
+
+                for remote, refspec_list in refspec_by_remote.items():
+                    progress.update(task_id, status=f"Fetching multi from {remote}")
+                    await self.fetch_multi(remote, refspec_list, module_path)
 
                 # 4. Fetch and Merge remaining origins
                 for refspec_info in spec.refspec_info[1:]:
@@ -369,6 +429,11 @@ class SpecProcessor:
                             progress.update(task_id, status=f"[red]Applying patches failed: {err}")
                             return ret
 
+                progress.update(task_id, status="Linking directory")
+                ret, err = await self.link_all_modules(progress, task_id, symlink_modules, module_path)
+                if ret != 0:
+                    return ret
+
                 progress.update(task_id, status="[green]Complete")
                 progress.remove_task(task_id)
                 count_progress.advance(count_task)
@@ -377,7 +442,6 @@ class SpecProcessor:
                 progress.update(task_id, status=f"[red]Error: {str(e)}")
                 return -1
 
-        ret, err = await self.link_all_modules()
         return 0
 
     async def process_project(self, project_spec: ProjectSpec) -> None:
