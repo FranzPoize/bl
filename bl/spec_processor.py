@@ -37,7 +37,6 @@ def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, sh
     args = [
         "clone",
         "--filter=tree:0",
-        "--sparse",
     ]
 
     if name == "odoo" or shallow:
@@ -45,6 +44,8 @@ def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, sh
             "--depth",
             "1",
         ]
+    else:
+        args += ["--sparse"]
 
     if ref_spec_info.type == OriginType.REF:
         args += [
