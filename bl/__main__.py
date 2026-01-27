@@ -5,11 +5,15 @@ from pathlib import Path
 
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
+from bl.freezer import freeze_project
 
 
 def run():
     parser = argparse.ArgumentParser(
         description="Process a project specification.", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "-f", "--freeze", const=True, default=None, nargs="?", type=Path, help="Freeze the current state of modules"
     )
     parser.add_argument(
         "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
@@ -24,7 +28,10 @@ def run():
         sys.exit(1)
 
     try:
-        asyncio.run(process_project(project_spec, concurrency=args.concurrency))
+        if args.freeze:
+            asyncio.run(freeze_project(project_spec, args.freeze, concurrency=args.concurrency))
+        else:
+            asyncio.run(process_project(project_spec, concurrency=args.concurrency))
     except Exception:
         sys.exit(1)
 

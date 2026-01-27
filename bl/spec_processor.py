@@ -11,8 +11,10 @@ from typing import Any, Dict, List, Optional
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
-from rich.table import Table
+from rich.table import Column, Table
 from typing_extensions import deprecated
+
+from bl.utils import english_env, get_local_ref, get_module_path, run_git
 
 from .spec_parser import ModuleSpec, OriginType, ProjectSpec, RefspecInfo
 
@@ -27,16 +29,9 @@ warnings.showwarning = rich_warning
 warnings.simplefilter("default", DeprecationWarning)
 
 
-english_env = os.environ.copy()
-# Ensure git outputs in English for consistent parsing
-english_env["LANG"] = "en_US.UTF-8"
-
-
 # for single branch we should clone shallow but for other we should clone
 # with tree:0 filter and because this avoid confusing fetch for git to have the history
 # before fetching
-
-
 def create_clone_args(name: str, ref_spec_info: RefspecInfo, remote_url: str, shallow: bool) -> List[str]:
     """Creates git clone arguments based on the base origin."""
     args = [
@@ -78,15 +73,6 @@ def normalize_merge_result(ret: int, out: str, err: str):
     return ret, err
 
 
-def get_local_ref(origin: RefspecInfo) -> str:
-    """Generates a local reference name for a given origin."""
-    if origin.type == OriginType.PR:
-        pr_id = origin.refspec.split("/")[-2]
-        return f"pr/{pr_id}"
-    else:
-        return f"loc-{origin.refspec}"
-
-
 class SpecProcessor:
     """
     Processes a ProjectSpec by concurrently cloning and merging modules.
@@ -94,37 +80,8 @@ class SpecProcessor:
 
     def __init__(self, workdir: Path, concurrency: int = 4):
         self.workdir = workdir
-        self.modules_dir = workdir / "external-src"
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
-
-    def get_module_path(self, module_name: str, module_spec: ModuleSpec) -> Path:
-        """Returns the path to the module directory."""
-        if module_name == "odoo" and module_spec.target_folder is None:
-            warnings.warn(
-                "importing 'odoo' without a 'target_folder' "
-                + "property is deprecated. Use target_folder: 'src/' in spec.yaml.",
-                DeprecationWarning,
-            )
-            return self.workdir / "src/"
-        elif module_spec.target_folder is not None:
-            return self.workdir / module_spec.target_folder
-        else:
-            return self.modules_dir / module_name
-
-    async def run_git(self, *args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
-        """Executes a git command asynchronously."""
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=english_env,
-        )
-        stdout, stderr = await proc.communicate()
-        returncode = proc.returncode if proc.returncode is not None else -1
-        return returncode, stdout.decode().strip(), stderr.decode().strip()
 
     @deprecated(
         "run_shell_commands is deprecated if used to apply patches. Use patch_globs properties in spec.yaml instead."
@@ -143,7 +100,7 @@ class SpecProcessor:
             if proc.returncode != 0:
                 # This is a sanity check because people usually put "git am" commands
                 # in shell_commands, so we abort any ongoing git am
-                await self.run_git("am", "--abort", cwd=str(module_path))
+                await run_git("am", "--abort", cwd=str(module_path))
                 progress.update(
                     task_id,
                     status=f"[red]Shell command failed: {cmd}\nError: {stderr.decode().strip()}",
@@ -157,7 +114,7 @@ class SpecProcessor:
         local_ref: str,
         module_path: Path,
     ) -> tuple[int, str, str]:
-        return await self.run_git(
+        return await run_git(
             "fetch",
             origin.remote,
             f"{origin.refspec}:{local_ref}",
@@ -169,20 +126,20 @@ class SpecProcessor:
     ) -> tuple[int, str, str]:
         args = create_clone_args(name, ref_spec_info, remote_url, shallow)
 
-        ret, out, err = await self.run_git(
+        ret, out, err = await run_git(
             *args,
             str(module_path),
         )
 
         # if it's a ref we need to manually create a base branch because we cannot
         # merge in a detached head
-        if ref_spec_info.type == OriginType.REF:
-            ret, out, err = await self.run_git(
-                "checkout",
-                "-b",
-                ref_spec_info.ref_name or ref_spec_info.refspec[:10],
-                cwd=str(module_path),
-            )
+        local_ref = get_local_ref(ref_spec_info)
+        ret, out, err = await run_git(
+            "checkout",
+            "-b",
+            local_ref,
+            cwd=str(module_path),
+        )
 
         return ret, out, err
 
@@ -199,13 +156,13 @@ class SpecProcessor:
         # I think the idea would be to not fetch shallow but fetch treeless and do a merge-base
         # then fetch the required data and then merge
         progress.update(task_id, status=f"Merging {local_ref}", advance=0.1)
-        ret, out, err = await self.run_git("merge", "--no-edit", local_ref, cwd=module_path)
+        ret, out, err = await run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
 
         if "CONFLICT" in err:
             progress.update(task_id, status=f"[red]Merge conflict in {origin.refspec}: {err}")
             # In case of conflict, we might want to abort the merge
-            await self.run_git("merge", "--abort", cwd=module_path)
+            await run_git("merge", "--abort", cwd=module_path)
         return ret, err
 
     async def setup_new_repo(
@@ -240,7 +197,7 @@ class SpecProcessor:
     async def reset_repo_for_work(
         self, progress: Progress, task_id: TaskID, spec: ModuleSpec, root_refspec_info: RefspecInfo, module_path: Path
     ) -> int:
-        ret, out, err = await self.run_git("status", "--porcelain", cwd=module_path)
+        ret, out, err = await run_git("status", "--porcelain", cwd=module_path)
 
         if out != "":
             progress.update(task_id, status=f"[red]Repo is dirty:\n{out}")
@@ -251,12 +208,12 @@ class SpecProcessor:
             status=(f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}"),
         )
 
-        s_ret, s_out, s_err = await self.run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
+        s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
         if len(spec.refspec_info) > 1 and s_out == "true":
-            await self.run_git("fetch", "--unshallow", cwd=module_path)
+            await run_git("fetch", "--unshallow", cwd=module_path)
 
         reset_target = f"{root_refspec_info.remote}/{root_refspec_info.refspec}"
-        ret, out, err = await self.run_git("reset", "--hard", reset_target, cwd=module_path)
+        ret, out, err = await run_git("reset", "--hard", reset_target, cwd=module_path)
         if ret != 0:
             progress.update(task_id, status=f"[red]Reset failed: {err}")
             return ret
@@ -265,7 +222,7 @@ class SpecProcessor:
             local_ref = get_local_ref(refspec_info)
             # This is probably the best thing but for now this works good enough
             # TODO(franz): find something better
-            ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
+            ret, out, err = await run_git("branch", "-d", local_ref, cwd=module_path)
 
     def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
         links_path = self.workdir / "links"
@@ -331,7 +288,7 @@ class SpecProcessor:
             local_ref = get_local_ref(refspec_info)
             args += [f"{refspec_info.refspec}:{local_ref}"]
 
-        ret, out, err = await self.run_git(*args, cwd=module_path)
+        ret, out, err = await run_git(*args, cwd=module_path)
 
         return ret, out, err
 
@@ -364,7 +321,7 @@ class SpecProcessor:
                     progress.update(task_id, status="[yellow]No origins defined", completed=1)
                     return -1
 
-                module_path = self.get_module_path(name, spec)
+                module_path = get_module_path(self.workdir, name, spec)
 
                 # 1. Initialize with first origin
                 root_refspec_info = spec.refspec_info[0]
@@ -385,19 +342,19 @@ class SpecProcessor:
 
                     # 2. Sparse Checkout setup
                     progress.update(task_id, status="Configuring sparse checkout...")
-                    await self.run_git("sparse-checkout", "init", "--cone", cwd=module_path)
+                    await run_git("sparse-checkout", "init", "--cone", cwd=module_path)
                     if symlink_modules:
-                        await self.run_git("sparse-checkout", "set", *spec.modules, cwd=module_path)
+                        await run_git("sparse-checkout", "set", *spec.modules, cwd=module_path)
 
-                checkout_target = root_refspec_info.refspec
+                checkout_target = "merged"
 
-                await self.run_git("checkout", checkout_target, cwd=module_path)
+                await run_git("checkout", "-b", checkout_target, cwd=module_path)
                 progress.advance(task_id)
 
                 for remote, remote_url in spec.remotes.items():
-                    await self.run_git("remote", "add", remote, remote_url, cwd=module_path)
-                    await self.run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
-                    await self.run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
+                    await run_git("remote", "add", remote, remote_url, cwd=module_path)
+                    await run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
+                    await run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
 
                 # TODO(franz) fetch and merge should be done separately
                 # fetch can be done in parallel by git with -j X and putting several refspec as parameters
@@ -425,9 +382,9 @@ class SpecProcessor:
                 if spec.patch_globs_to_apply:
                     for glob in spec.patch_globs_to_apply:
                         progress.update(task_id, status=f"Applying patches: {glob}...", advance=0.1)
-                        ret, out, err = await self.run_git("am", glob, cwd=module_path)
+                        ret, out, err = await run_git("am", glob, cwd=module_path)
                         if ret != 0:
-                            await self.run_git("am", "--abort", cwd=module_path)
+                            await run_git("am", "--abort", cwd=module_path)
                             progress.update(task_id, status=f"[red]Applying patches failed: {err}")
                             return ret
 
@@ -449,14 +406,14 @@ class SpecProcessor:
 
     async def process_project(self, project_spec: ProjectSpec) -> None:
         """Processes all modules in a ProjectSpec."""
-        self.modules_dir.mkdir(parents=True, exist_ok=True)
+        (self.workdir / "external-src").mkdir(parents=True, exist_ok=True)
 
         task_list_progress = Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("{task.fields[status]}"),
+            TextColumn("{task.fields[status]}", table_column=Column(ratio=2)),
         )
 
         task_count_progress = Progress(
