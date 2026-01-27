@@ -239,7 +239,7 @@ class SpecProcessor:
                 if path_dest_symlink.is_symlink():
                     path_dest_symlink.unlink()
 
-                os.symlink(path_src_symlink, path_dest_symlink, True)
+                os.symlink(path_src_symlink.relative_to(path_dest_symlink, walk_up=True), path_dest_symlink, True)
             except OSError as e:
                 return -1, str(e)
 
