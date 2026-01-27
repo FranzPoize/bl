@@ -1,1 +1,7 @@
-hyperfine --warmup 1 -m 5 --parameter-scan num_conc 4 6 'python -m bl noukies-spec.yaml $((4*{num_conc}))'
+hyperfine \
+  --setup "./clean.sh" \
+  --warmup 1 \
+  -m 5 \
+  'python -m bl -c noukies-spec.yaml -z noukies-frz.yaml' \
+  'python -m bl -c abilis-spec.yaml' \
+  'python -m bl -c prodotti-spec.yaml'
