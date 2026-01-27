@@ -268,17 +268,19 @@ class SpecProcessor:
     async def link_all_modules(
         self, progress: Progress, task_id: TaskID, module_list: List[str], module_path: Path
     ) -> tuple[int, str]:
-        links_path = Path("links/")
+        links_path = self.workdir / "links"
         links_path.mkdir(exist_ok=True)
-        for dir in os.listdir(links_path):
-            dir_path = links_path / dir
-            if dir_path.is_symlink():
-                dir_path.unlink()
+
+        # Remove all symlink
 
         for module_name in module_list:
             try:
                 path_src_symlink = module_path / module_name
                 path_dest_symlink = links_path / module_name
+
+                if path_dest_symlink.exists() and path_dest_symlink.is_symlink():
+                    path_dest_symlink.unlink()
+
                 os.symlink(path_src_symlink, path_dest_symlink, True)
             except OSError as e:
                 progress.update(task_id, status=f"[red]Error creating symlink {path_src_symlink}: {e}")
@@ -336,8 +338,9 @@ class SpecProcessor:
 
     def filter_non_link_module(self, spec: ModuleSpec):
         result = []
+        base_path_links = self.workdir / "links"
         for module in spec.modules:
-            path = Path("links") / module
+            path = base_path_links / module
             if path.is_symlink() or not path.exists():
                 result.append(module)
             else:
