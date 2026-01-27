@@ -16,8 +16,6 @@ from typing_extensions import deprecated
 
 from .spec_parser import ModuleSpec, OriginType, ProjectSpec, RefspecInfo
 
-BASE_DEPTH_VALUE = 100
-
 console = Console()
 
 
@@ -253,6 +251,10 @@ class SpecProcessor:
             status=(f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}"),
         )
 
+        s_ret, s_out, s_err = await self.run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
+        if len(spec.refspec_info) > 1 and s_out == "true":
+            await self.run_git("fetch", "--unshallow", cwd=module_path)
+
         reset_target = f"{root_refspec_info.remote}/{root_refspec_info.refspec}"
         ret, out, err = await self.run_git("reset", "--hard", reset_target, cwd=module_path)
         if ret != 0:
@@ -265,9 +267,7 @@ class SpecProcessor:
             # TODO(franz): find something better
             ret, out, err = await self.run_git("branch", "-d", local_ref, cwd=module_path)
 
-    async def link_all_modules(
-        self, progress: Progress, task_id: TaskID, module_list: List[str], module_path: Path
-    ) -> tuple[int, str]:
+    def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
         links_path = self.workdir / "links"
         links_path.mkdir(exist_ok=True)
 
@@ -278,12 +278,11 @@ class SpecProcessor:
                 path_src_symlink = module_path / module_name
                 path_dest_symlink = links_path / module_name
 
-                if path_dest_symlink.exists() and path_dest_symlink.is_symlink():
+                if path_dest_symlink.is_symlink():
                     path_dest_symlink.unlink()
 
                 os.symlink(path_src_symlink, path_dest_symlink, True)
             except OSError as e:
-                progress.update(task_id, status=f"[red]Error creating symlink {path_src_symlink}: {e}")
                 return -1, str(e)
 
         return 0, ""
@@ -415,7 +414,7 @@ class SpecProcessor:
                         progress, task_id, spec, refspec_info, root_refspec_info, module_path
                     )
                     if ret != 0:
-                        progress.update(task_id, status=f"[red]Merge failed from {refspec_info.refspec}: {err}")
+                        progress.update(task_id, status=f"[purple]Merge failed from {refspec_info.refspec}: {err}")
                         return -1
 
                 if spec.shell_commands:
@@ -433,8 +432,9 @@ class SpecProcessor:
                             return ret
 
                 progress.update(task_id, status="Linking directory")
-                ret, err = await self.link_all_modules(progress, task_id, symlink_modules, module_path)
+                ret, err = self.link_all_modules(symlink_modules, module_path)
                 if ret != 0:
+                    progress.update(task_id, status=f"[red]Could not link modules: {err}")
                     return ret
 
                 progress.update(task_id, status="[green]Complete")
