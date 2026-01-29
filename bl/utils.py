@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import warnings
-from bl.spec_parser import ModuleSpec, OriginType, RefspecInfo
+from bl.types import RepoInfo, OriginType, RefspecInfo
 
 
 english_env = os.environ.copy()
@@ -12,7 +12,7 @@ english_env = os.environ.copy()
 english_env["LANG"] = "en_US.UTF-8"
 
 
-def get_module_path(workdir: Path, module_name: str, module_spec: ModuleSpec) -> Path:
+def get_module_path(workdir: Path, module_name: str, module_spec: RepoInfo) -> Path:
     """Returns the path to the module directory."""
     if module_name == "odoo" and module_spec.target_folder is None:
         warnings.warn(

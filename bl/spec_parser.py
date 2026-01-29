@@ -1,18 +1,13 @@
 import re
 import warnings
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 
-
-class OriginType(Enum):
-    """Type of origin reference."""
-
-    BRANCH = "branch"
-    PR = "pr"
-    REF = "ref"
+from bl.types import RepoInfo, OriginType, ProjectSpec, RefspecInfo
 
 
 def make_remote_merge_from_src(src: str) -> tuple[dict, list]:
@@ -52,62 +47,26 @@ def get_origin_type(origin_value: str) -> OriginType:
         return OriginType.BRANCH
 
 
-class RefspecInfo:
-    """A git refspec with its remote, type and optional frozen sha."""
+def parse_remote_refspec_from_parts(parts: List[str], frozen_repo: Dict[str, Dict[str, str]]):
+    if len(parts) == 2:
+        parts.insert(1, "")
+    else:
+        warnings.warn(
+            "Deprecated src format: use <url> <sha> format for the src property",
+            DeprecationWarning,
+        )
+    remote_key, _, ref_spec = parts
+    ref_type = get_origin_type(ref_spec)
 
-    def __init__(
-        self,
-        remote: str,
-        ref_str: str,
-        type: OriginType,
-        ref_name: Optional[str],
-    ):
-        self.remote = remote
-        self.refspec = ref_str
-        """ The refspec string (branch name, PR ref, or commit hash). """
-        self.type = type
-        self.ref_name = ref_name
+    ref_name = None
+    remote_freezes = frozen_repo.get(remote_key, {})
 
-    def __repr__(self) -> str:
-        return f"RefspecInfo(remote={self.remote!r}, origin={self.refspec!r}, type={self.type.value})"
+    if ref_spec in remote_freezes:
+        ref_type = OriginType.REF
+        ref_name = ref_spec
+        ref_spec = remote_freezes.get(ref_name)
 
-
-class ModuleSpec:
-    """Represents the specification for a set of modules."""
-
-    def __init__(
-        self,
-        modules: List[str],
-        remotes: Optional[Dict[str, str]] = {},
-        origins: Optional[List[RefspecInfo]] = [],
-        shell_commands: Optional[List[str]] = [],
-        patch_globs_to_apply: Optional[List[str]] = None,
-        target_folder: Optional[str] = None,
-        frozen_modules: Optional[Dict[str, Dict[str, str]]] = None,
-        locales: Optional[List[str]] = [],
-    ):
-        self.modules = modules
-        self.remotes = remotes
-        self.refspec_info = origins
-        self.shell_commands = shell_commands
-        self.patch_globs_to_apply = patch_globs_to_apply
-        self.frozen_modules = frozen_modules
-        self.target_folder = target_folder
-        self.locales = locales
-
-    def __repr__(self) -> str:
-        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info})"
-
-
-class ProjectSpec:
-    """Represents the overall project specification from the YAML file."""
-
-    def __init__(self, specs: Dict[str, ModuleSpec], workdir: Path = Path(".")):
-        self.specs = specs
-        self.workdir = workdir
-
-    def __repr__(self) -> str:
-        return f"ProjectSpec(specs={self.specs}, workdir={self.workdir})"
+    return RefspecInfo(remote_key, ref_spec, ref_type, ref_name)
 
 
 def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[ProjectSpec]:
@@ -125,6 +84,7 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
             config = config.resolve()
             # If the file is not in the current directory, check inside the odoo subdirectory
             odoo_config = config.parent / "odoo" / config.name
+            # TODO(franz): should use rich console for prettiness
             if not odoo_config.exists():
                 print(f"Error: Neither '{config}' nor '{odoo_config}' exists.")
                 return None
@@ -153,24 +113,21 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
         except yaml.YAMLError as e:
             print(f"Error parsing frozen YAML file '{frozen_path}': {e}")
 
-    specs: Dict[str, ModuleSpec] = {}
-    for section_name, section_data in data.items():
-        modules = section_data.get("modules", [])
-        src = section_data.get("src")
-        remotes = section_data.get("remotes") or {}
-        merges = section_data.get("merges") or []
-        shell_commands = section_data.get("shell_command_after") or None
-        patch_globs_to_apply = section_data.get("patch_globs") or None
-        target_folder = section_data.get("target_folder") or None
-        locales = section_data.get("locales", [])
+    repos: Dict[str, RepoInfo] = {}
+    for repo_name, repo_data in data.items():
+        modules = repo_data.get("modules", [])
+        src = repo_data.get("src")
+        remotes = repo_data.get("remotes") or {}
+        merges = repo_data.get("merges") or []
+        shell_commands = repo_data.get("shell_command_after") or None
+        patch_globs_to_apply = repo_data.get("patch_globs") or None
+        target_folder = repo_data.get("target_folder") or None
+        locales = repo_data.get("locales", [])
 
-        frozen_for_section_raw = frozen_mapping.get(section_name)
-        frozen_for_section: Optional[Dict[str, Dict[str, str]]] = (
-            frozen_for_section_raw if isinstance(frozen_for_section_raw, dict) else None
-        )
+        frozen_repo = frozen_mapping.get(repo_name, {})
 
         # Parse merges into RefspecInfo objects
-        origins: List[RefspecInfo] = []
+        refspec_infos: List[RefspecInfo] = []
         if src:
             # If src is defined, create a remote and merge entry from it
             src_remotes, src_merges = make_remote_merge_from_src(src)
@@ -179,53 +136,17 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
 
         for merge_entry in merges:
             parts = merge_entry.split(" ", 2)
-            if len(parts) == 2:
-                remote_key, ref_spec = parts
+            refspec_info = parse_remote_refspec_from_parts(parts, frozen_repo)
+            refspec_infos.append(refspec_info)
 
-                # Determine type: PR if matches refs/pull/{pr_id}/head pattern, otherwise branch
-                ref_type = get_origin_type(ref_spec)
-
-                ref_name = None
-                if frozen_for_section:
-                    remote_freezes = frozen_for_section.get(remote_key) or {}
-                    ref_name = ref_spec
-                    ref_type = OriginType.REF
-                    frozen_ref = remote_freezes.get(ref_spec)
-                    ref_spec = frozen_ref or ref_spec
-
-                origins.append(
-                    RefspecInfo(
-                        remote_key,
-                        ref_spec,
-                        ref_type,
-                        ref_name,
-                    )
-                )
-            elif len(parts) == 3:
-                warnings.warn(
-                    "Deprecated src format: use <url> <sha> format for the src property",
-                    DeprecationWarning,
-                )
-                remote_key, _, ref_spec = parts
-                ref_type = get_origin_type(ref_spec)
-
-                ref_name = None
-                if frozen_for_section:
-                    remote_freezes = frozen_for_section.get(remote_key) or {}
-                    ref_name = ref_spec
-                    ref_spec = remote_freezes.get(ref_spec)
-
-                origins.append(RefspecInfo(remote_key, ref_spec, ref_type, ref_name))
-
-        specs[section_name] = ModuleSpec(
+        repos[repo_name] = RepoInfo(
             modules,
             remotes,
-            origins,
+            refspec_infos,
             shell_commands,
             patch_globs_to_apply,
             target_folder,
-            frozen_for_section,
             locales,
         )
 
-    return ProjectSpec(specs, workdir)
+    return ProjectSpec(repos, workdir)
