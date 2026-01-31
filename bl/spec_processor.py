@@ -242,13 +242,13 @@ class RepoProcessor:
         ret, err = normalize_merge_result(ret, out, err)
 
         if "CONFLICT" in err:
-            self.progress.update(self.task_id, status=f"[red]Merge conflict {local_ref} in {remote_ref.refspec}: {err}")
+            self.progress.update(self.task_id, status=f"[red]Merge conflict {local_ref} in {remote_ref}: {err}")
             # In case of conflict, we might want to abort the merge
             await run_git("merge", "--abort", cwd=module_path)
             return ret, err
 
         if ret != 0:
-            self.progress.update(self.task_id, status=f"[red]Merge error {local_ref} in {remote_ref.refspec}: {err}")
+            self.progress.update(self.task_id, status=f"[red]Merge error {local_ref} in {remote_ref}: {err}")
             return ret, err
 
         return 0, ""
