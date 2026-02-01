@@ -1,13 +1,11 @@
 import asyncio
 import yaml
-from operator import countOf
 from pathlib import Path
-from typing import TextIO
 
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
-from bl.spec_parser import ModuleSpec, ProjectSpec
+from bl.types import RepoInfo, ProjectSpec
 from bl.utils import get_local_ref, get_module_path, run_git
 
 console = Console()
@@ -18,7 +16,7 @@ async def freeze_spec(
     progress: Progress,
     task_id: TaskID,
     module_name: str,
-    module_spec: ModuleSpec,
+    module_spec: RepoInfo,
     workdir: Path,
 ):
     result = {module_name: {}}
