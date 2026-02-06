@@ -18,6 +18,7 @@ Because `ak` error are impossible to find
 * `concurrency` number of module clone simultaneously (default: 28)
 
 #### How it looks
+<img width="1683" height="756" alt="bl_build" src="https://github.com/user-attachments/assets/22fc1565-3a54-4f57-9b85-a11263b9b536" />
 
 ### Freeze
 
