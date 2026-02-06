@@ -29,7 +29,7 @@ def get_module_path(workdir: Path, module_name: str, module_spec: RepoInfo) -> P
 
 def get_local_ref(origin: RefspecInfo) -> str:
     """Generates a local reference name for a given origin."""
-    return f"loc-{origin.ref_name or origin.refspec}"
+    return f"{origin.ref_name or origin.refspec}"
 
 
 async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
