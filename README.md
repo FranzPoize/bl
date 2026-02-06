@@ -74,6 +74,6 @@ It will only download the french and english translation instead of all of them
 ### Results
 |Type| AK | BL |
 |----|----|----|
-|Cold| ~100s | 2 -> 10x faster |
-|Hot| 3->20s | 2 -> 10x faster |
+|Cold| ~100s | 2 - 10x faster |
+|Hot| 3-20s | 2 - 10x faster |
 
