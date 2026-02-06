@@ -28,7 +28,27 @@ Because `ak` error are impossible to find
 * `path_to_frozen.yaml` should be the path to your spec (default: frozen.yaml)
 * `concurrency` number of module clone simultaneously (default: 28)
 
-#### How it looks
+## Odoo is taking a really long time to clone
+
+Yes !
+
+You can add a locales entry to your odoo repo in `spec.yaml` like so:
+```
+odoo:
+  modules:
+    - account
+    ...
+  remotes:
+    odoo: https://github.com/odoo/odoo
+  merges:
+    - odoo 14.0
+  locales:
+    - fr
+    - en
+```
+It will only download the french and english translation instead of all of them
+- without locales: 849MB and 40 seconds fresh build
+- with locales fr, en: 169MB and 27 seconds fresh build
 
 ## Benchmarks
 
