@@ -49,14 +49,14 @@ async def freeze_project(project_spec: ProjectSpec, freeze_file: Path | bool, co
         MofNCompleteColumn(),
     )
     count_task = task_count_progress.add_task(
-        f"Freezing modules into {freeze_file_path}", total=len(project_spec.specs)
+        f"Freezing modules into {freeze_file_path}", total=len(project_spec.repos)
     )
 
     freeze_data = {}
 
     with Live(task_count_progress, console=console, refresh_per_second=10):
         task_list = []
-        for name, spec in project_spec.specs.items():
+        for name, spec in project_spec.repos.items():
             task_list.append(
                 freeze_spec(
                     frz_semaphore,
@@ -71,7 +71,6 @@ async def freeze_project(project_spec: ProjectSpec, freeze_file: Path | bool, co
         for item in freeze_list:
             freeze_data.update(item)
 
-    console.print(yaml.dump(freeze_data, default_flow_style=False))
     with open(freeze_file_path, "w") as freeze_stream:
         yaml.dump(freeze_data, freeze_stream, default_flow_style=False)
 
