@@ -13,3 +13,4 @@ frozen.yaml
 benchmark/**/src/
 benchmark/ak_benchmark/noukies-frz.yaml
 benchmark/bl_benchmark/noukies-frz.yaml
+benchmark/ak_benchmark/repo.yaml
