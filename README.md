@@ -8,6 +8,10 @@ Because `ak` crashes if anything goes wrong
 
 Because `ak` error are impossible to find
 
+## Install
+
+`pipx install bl-odoo`
+
 ## Usage
 
 ### Build
