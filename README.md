@@ -60,5 +60,20 @@ It will only download the french and english translation instead of all of them
 ## Benchmarks
 
 ### Ak benchmarks
+#### Fresh install
+<img width="1462" height="347" alt="ak_bench_cold" src="https://github.com/user-attachments/assets/e29cd3d9-831c-43c1-8f29-e040ebee5740" />
+#### Already cloned once
+<img width="1419" height="356" alt="ak_bench_hot" src="https://github.com/user-attachments/assets/47b5756e-efe1-4272-82b7-e160f73af1be" />
 
 ### Bl benchmarks
+#### Fresh install
+<img width="1335" height="343" alt="bl_bench_cold" src="https://github.com/user-attachments/assets/a64ba1c4-17bd-4017-acfd-5749df505f50" />
+#### Already cloned once
+<img width="1373" height="342" alt="bl_bench_hot" src="https://github.com/user-attachments/assets/b11e60c2-368b-496c-bc88-f5a765f44bfe" />
+
+### Results
+|Type| AK | BL |
+|----|----|----|
+|Cold| ~100s | 2 -> 10x faster |
+|Hot| 3->20s | 2 -> 10x faster |
+
