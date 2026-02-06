@@ -4,6 +4,7 @@ import warnings
 from pathlib import Path
 from typing import Dict, List
 
+from rich import progress
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
@@ -17,6 +18,11 @@ from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo
 console = Console()
 
 # TODO(franz): it's a bit better now but better keep an eye on it
+# TODO(franz): Error handling should be watch carefully because if
+# we don't exit on some error code due to the fact that git resolve to
+# the parent repo we could activate sparse checkout on a parent folder
+# should probably make a function that handles the error in a unified manner
+# and crash if the error is on a vital part of the process
 
 
 def rich_warning(message, category, filename, lineno, file=None, line=None):
@@ -179,6 +185,9 @@ class RepoProcessor:
 
         if out != "":
             self.progress.update(self.task_id, status=f"[red]Repo is dirty:\n{out}")
+            return ret
+        if ret != 0:
+            self.progress.update(self.task_id, status="[red]Repo does not exist")
             return ret
         # Reset all the local origin to their remote origins
         repo_info = self.repo_info
@@ -363,6 +372,9 @@ class RepoProcessor:
                     self.repo_info.refspec_info
                 )
 
+                # TODO(franz): right now we fetch everything so when the repo is just cloned
+                # we fetch the base branch twice. Since we fetch with multi this is probably not
+                # a big issue but it could be better
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
                     await self.fetch_multi(remote, refspec_list, module_path)

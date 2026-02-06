@@ -14,14 +14,14 @@ english_env["LANG"] = "en_US.UTF-8"
 
 def get_module_path(workdir: Path, module_name: str, module_spec: RepoInfo) -> Path:
     """Returns the path to the module directory."""
-    if module_name == "odoo" and module_spec.target_folder is None:
+    if module_name == "odoo" and not module_spec.target_folder:
         warnings.warn(
             "importing 'odoo' without a 'target_folder' "
             + "property is deprecated. Use target_folder: 'src/' in spec.yaml.",
             DeprecationWarning,
         )
         return workdir / "src/"
-    elif module_spec.target_folder is not None:
+    elif module_spec.target_folder:
         return workdir / module_spec.target_folder
     else:
         return workdir / "external-src" / module_name
@@ -36,6 +36,8 @@ async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str
     """Executes a git command asynchronously."""
     proc = await asyncio.create_subprocess_exec(
         "git",
+        "--git-dir",
+        ".git/",
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

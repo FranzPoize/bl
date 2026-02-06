@@ -3,7 +3,7 @@ import warnings
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 import yaml
 
@@ -69,6 +69,13 @@ def parse_remote_refspec_from_parts(parts: List[str], frozen_repo: Dict[str, Dic
     return RefspecInfo(remote_key, ref_spec, ref_type, ref_name)
 
 
+def get_with_syntax_check(name, data, key: str, type: Type):
+    result = data.get(key, type())
+    if not isinstance(result, type):
+        raise Exception(f"Key {key} not of proper syntax should be {str(type)} in {name} description")
+    return result
+
+
 def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[ProjectSpec]:
     """
     Loads and parses the project specification from a YAML file.
@@ -115,14 +122,14 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
 
     repos: Dict[str, RepoInfo] = {}
     for repo_name, repo_data in data.items():
-        modules = repo_data.get("modules", [])
-        src = repo_data.get("src")
-        remotes = repo_data.get("remotes") or {}
-        merges = repo_data.get("merges") or []
-        shell_commands = repo_data.get("shell_command_after") or None
-        patch_globs_to_apply = repo_data.get("patch_globs") or None
-        target_folder = repo_data.get("target_folder") or None
-        locales = repo_data.get("locales", [])
+        modules = get_with_syntax_check(repo_name, repo_data, "modules", list)
+        src = get_with_syntax_check(repo_name, repo_data, "src", str)
+        remotes = get_with_syntax_check(repo_name, repo_data, "remotes", dict)
+        merges = get_with_syntax_check(repo_name, repo_data, "merges", list)
+        shell_commands = get_with_syntax_check(repo_name, repo_data, "shell_command_after", list)
+        patch_globs_to_apply = get_with_syntax_check(repo_name, repo_data, "patch_globs", list)
+        target_folder = get_with_syntax_check(repo_name, repo_data, "target_folder", str)
+        locales = get_with_syntax_check(repo_name, repo_data, "locales", list)
 
         frozen_repo = frozen_mapping.get(repo_name, {})
 

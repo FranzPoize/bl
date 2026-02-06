@@ -12,15 +12,19 @@ def run():
     parser = argparse.ArgumentParser(
         description="Process a project specification.", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument(
-        "-f", "--freeze", const=True, default=None, nargs="?", type=Path, help="Freeze the current state of modules"
-    )
-    parser.add_argument(
+
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
         "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
     )
-    parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
-    parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
-    parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
+    parent_parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
+    parent_parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
+    parent_parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
+
+    sub = parser.add_subparsers(help="subcommand help", dest="command")
+    build = sub.add_parser("build", parents=[parent_parser], help="build help")
+    freeze = sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
+
     args = parser.parse_args()
 
     project_spec = load_spec_file(args.config, args.frozen, args.workdir)
@@ -28,9 +32,9 @@ def run():
         sys.exit(1)
 
     try:
-        if args.freeze:
+        if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.freeze, concurrency=args.concurrency))
-        else:
+        elif args.command == "build":
             asyncio.run(process_project(project_spec, concurrency=args.concurrency))
     except Exception:
         sys.exit(1)
