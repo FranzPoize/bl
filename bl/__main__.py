@@ -33,7 +33,7 @@ def run():
 
     try:
         if args.command == "freeze":
-            asyncio.run(freeze_project(project_spec, args.freeze, concurrency=args.concurrency))
+            asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
             asyncio.run(process_project(project_spec, concurrency=args.concurrency))
     except Exception:

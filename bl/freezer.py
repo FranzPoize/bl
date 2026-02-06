@@ -40,7 +40,7 @@ async def freeze_spec(
 async def freeze_project(project_spec: ProjectSpec, freeze_file: Path | bool, concurrency: int):
     frz_semaphore = asyncio.Semaphore(concurrency)
     workdir = project_spec.workdir
-    freeze_file_name = freeze_file if freeze_file is not True else "frozen.yaml"
+    freeze_file_name = freeze_file if freeze_file else "frozen.yaml"
     freeze_file_path = workdir / freeze_file_name
 
     task_count_progress = Progress(
