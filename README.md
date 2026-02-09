@@ -2,11 +2,7 @@
 
 ## Why BL
 
-Because `ak` is slow and `bl` is fast
-
-Because `ak` crashes if anything goes wrong
-
-Because `ak` error are impossible to find
+Because `ak` is a bit slow and I was tired of waiting around
 
 ## Install
 
