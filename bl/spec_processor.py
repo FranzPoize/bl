@@ -133,8 +133,6 @@ class RepoProcessor:
         if ret != 0:
             return -1
 
-        await self.setup_sparse_checkout(symlink_modules, module_path)
-
         checkout_target = "merged"
 
         await run_git("checkout", "-b", checkout_target, cwd=module_path)
@@ -201,6 +199,7 @@ class RepoProcessor:
 
         local_ref = get_local_ref(root_refspec_info)
         ret, out, err = await run_git("checkout", "-b", local_ref, cwd=module_path)
+        await run_git("sparse-checkout", "init", "--cone", cwd=module_path)
 
         return 0
 
@@ -351,7 +350,6 @@ class RepoProcessor:
         # 2. Sparse Checkout setup
         if self.name != "odoo":
             self.progress.update(self.task_id, status="Configuring sparse checkout...")
-            await run_git("sparse-checkout", "init", "--cone", cwd=module_path)
             if symlink_modules:
                 await run_git("sparse-checkout", "set", *self.repo_info.modules, cwd=module_path)
         elif len(self.repo_info.locales) > 0:
@@ -436,6 +434,8 @@ class RepoProcessor:
                     if ret != 0:
                         return -1
                     self.progress.advance(self.task_id)
+
+                await self.setup_sparse_checkout(symlink_modules, module_path)
 
                 ret = await self.run_shell_commands(self.repo_info, module_path)
                 if ret != 0:
