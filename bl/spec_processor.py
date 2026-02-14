@@ -148,7 +148,7 @@ class RepoProcessor:
 
     async def run_shell_commands(self, repo_info: RepoInfo, module_path: Path) -> int:
         for cmd in repo_info.shell_commands:
-            if self.name == "odoo":
+            if "git am" in cmd:
                 warnings.warn(
                     "run_shell_commands is deprecated if used to apply patches. "
                     + "Use patch_globs properties in spec.yaml instead.",
