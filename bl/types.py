@@ -56,7 +56,7 @@ class RepoInfo:
     def __init__(
         self,
         modules: List[str],
-        remotes: List[str] = {},
+        remotes: Dict[str, str] = {},
         refspecs: List[RefspecInfo] = [],
         shell_commands: List[str] = [],
         patch_globs_to_apply: List[str] = [],

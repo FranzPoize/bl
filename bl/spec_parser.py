@@ -14,6 +14,10 @@ def make_remote_merge_from_src(src: str) -> tuple[dict, list]:
     """
     Creates a remote and merge entry from the src string.
     """
+    # TODO(franz): if there is 3 part:
+    # - url: parts[0]
+    # - branch: parts[1]
+    # - sha: parts[2]
     remotes = {}
     merges = []
 

@@ -123,11 +123,37 @@ class RepoProcessor:
         self.count_task = count_task
         self.concurrency = concurrency
 
-    @deprecated(
-        "run_shell_commands is deprecated if used to apply patches. Use patch_globs properties in spec.yaml instead."
-    )
+    async def clone_or_reset_and_setup_repo(self, module_path: Path, symlink_modules: List[str]):
+        if check_path_is_repo(module_path):
+            clone_info = clone_info_from_repo(self.name, self.repo_info)
+            ret = await self.setup_new_repo(clone_info, module_path)
+        else:
+            ret = await self.reset_repo_for_work(module_path)
+
+        if ret != 0:
+            return -1
+
+        await self.setup_sparse_checkout(symlink_modules, module_path)
+
+        checkout_target = "merged"
+
+        await run_git("checkout", "-b", checkout_target, cwd=module_path)
+
+        for remote, remote_url in self.repo_info.remotes.items():
+            await run_git("remote", "add", remote, remote_url, cwd=module_path)
+            await run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
+            await run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
+
+        return 0
+
     async def run_shell_commands(self, repo_info: RepoInfo, module_path: Path) -> int:
         for cmd in repo_info.shell_commands:
+            if self.name == "odoo":
+                warnings.warn(
+                    "run_shell_commands is deprecated if used to apply patches. "
+                    + "Use patch_globs properties in spec.yaml instead.",
+                    DeprecationWarning,
+                )
             self.progress.update(self.task_id, status=f"Running shell command: {cmd}...")
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -210,9 +236,9 @@ class RepoProcessor:
 
         return 0
 
-    def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
+    async def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
         links_path = self.workdir / "links"
-        links_path.mkdir(exist_ok=True)
+        await asyncio.to_thread(links_path.mkdir, exist_ok=True)
 
         # Remove all symlink
 
@@ -224,7 +250,9 @@ class RepoProcessor:
                 if path_dest_symlink.is_symlink():
                     path_dest_symlink.unlink()
 
-                os.symlink(path_src_symlink.relative_to(links_path, walk_up=True), path_dest_symlink, True)
+                await asyncio.to_thread(
+                    os.symlink, path_src_symlink.relative_to(links_path, walk_up=True), path_dest_symlink, True
+                )
             except OSError as e:
                 return -1, str(e)
 
@@ -246,7 +274,7 @@ class RepoProcessor:
         # Merge
         # I think the idea would be to not fetch shallow but fetch treeless and do a merge-base
         # then fetch the required data and then merge
-        self.progress.update(self.task_id, status=f"Merging {local_ref}", advance=0.1)
+        self.progress.update(self.task_id, status=f"Merging {local_ref}")
         ret, out, err = await run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
 
@@ -331,42 +359,62 @@ class RepoProcessor:
             self.progress.update(self.task_id, status="Configuring sparse odoo checkout...")
             await self.setup_odoo_sparse(self.repo_info, module_path)
 
+    def count_step(self):
+        # steps are:
+        # setup or clone
+        # + fetches (number of remotes)
+        # + merges (refspec_info - 1)
+        # + potential Shell commands
+        # + patch to apply
+        # + links
+        clone_steps = 1
+        fetch_steps = len(self.repo_info.remotes)
+        merge_count = len(self.repo_info.refspec_info) - 1
+        command_count = len(self.repo_info.shell_commands)
+        patch_count = len(self.repo_info.shell_commands)
+        link_step = 1
+        count_step = clone_steps + fetch_steps + merge_count + command_count + patch_count + link_step
+
+        return count_step
+
     async def process_repo(self) -> int:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
 
         async with self.semaphore:
+            # As an input we have 3 things for each repo
+            # a list of branches
+            # a list of remotes
+            # a list of modules
             try:
+                count_step = self.count_step()
                 self.task_id = self.progress.add_task(
-                    f"[cyan]{self.name}", status="Waiting...", total=len(self.repo_info.refspec_info) + 1
+                    f"[cyan]{self.name}",
+                    status="Waiting...",
+                    total=count_step,
                 )
                 if not self.repo_info.refspec_info:
                     self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
                     return -1
 
-                # TODO(franz) the shallow and sparseness of repo should be unify
-                # so that we don't have all those stupid conditions
-                if check_path_is_repo(module_path):
-                    clone_info = clone_info_from_repo(self.name, self.repo_info)
-                    ret = await self.setup_new_repo(clone_info, module_path)
-                else:
-                    ret = await self.reset_repo_for_work(module_path)
+                # First thing we need to do is setup the repos
+                # - If the repo does not exist we need to clone it
+                # - If it exists we need to reset some branch to a good state
+                # - then we add all the remote
+                #   - We should check if the remote are properly created
+                #     remote can already created I don't thinkk git notifies
+                #     us if the remote is not reachable
 
-                if ret != 0:
-                    return -1
-
-                await self.setup_sparse_checkout(symlink_modules, module_path)
-
-                checkout_target = "merged"
-
-                await run_git("checkout", "-b", checkout_target, cwd=module_path)
+                self.progress.update(
+                    self.task_id,
+                    status=("Setting up repo ..."),
+                )
+                ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
                 self.progress.advance(self.task_id)
 
-                for remote, remote_url in self.repo_info.remotes.items():
-                    await run_git("remote", "add", remote, remote_url, cwd=module_path)
-                    await run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
-                    await run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
+                if ret != 0:
+                    return ret
 
                 refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
                     self.repo_info.refspec_info
@@ -378,8 +426,9 @@ class RepoProcessor:
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
                     await self.fetch_multi(remote, refspec_list, module_path)
+                    self.progress.advance(self.task_id)
 
-                # 4. Fetch and Merge remaining origins
+                # Merge everything into the main branch
                 for refspec_info in self.repo_info.refspec_info[1:]:
                     ret, err = await self.merge_spec_into_tree(
                         self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
@@ -388,30 +437,29 @@ class RepoProcessor:
                         return -1
                     self.progress.advance(self.task_id)
 
-                if self.repo_info.shell_commands:
-                    ret = await self.run_shell_commands(self.repo_info, module_path)
-                    if ret != 0:
-                        return ret
+                ret = await self.run_shell_commands(self.repo_info, module_path)
+                if ret != 0:
+                    return ret
+                self.progress.advance(self.task_id)
 
-                if self.repo_info.patch_globs_to_apply:
-                    for glob in self.repo_info.patch_globs_to_apply:
-                        self.progress.update(self.task_id, status=f"Applying patches: {glob}...", advance=0.1)
-                        ret, out, err = await run_git("am", glob, cwd=module_path)
-                        if ret != 0:
-                            await run_git("am", "--abort", cwd=module_path)
-                            self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
-                            return ret
+                for glob in self.repo_info.patch_globs_to_apply:
+                    self.progress.update(self.task_id, status=f"Applying patches: {glob}...", advance=0.1)
+                    ret, out, err = await run_git("am", glob, cwd=module_path)
+                    if ret != 0:
+                        await run_git("am", "--abort", cwd=module_path)
+                        self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
+                        return ret
+                    self.progress.advance(self.task_id)
 
                 self.progress.update(self.task_id, status="Linking directory")
                 if self.name != "odoo":
-                    ret, err = self.link_all_modules(symlink_modules, module_path)
+                    ret, err = await self.link_all_modules(symlink_modules, module_path)
                     if ret != 0:
                         self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
                         return ret
 
-                self.progress.update(self.task_id, status="[green]Complete", advance=1)
-                self.progress.remove_task(self.task_id)
                 self.count_progress.advance(self.count_task)
+                self.progress.remove_task(self.task_id)
 
             except Exception as e:
                 self.progress.update(self.task_id, status=f"[red]Error: {str(e)}")
@@ -452,7 +500,6 @@ async def process_project(project_spec: ProjectSpec, concurrency: int) -> None:
     with Live(progress_table, console=console, refresh_per_second=10):
         tasks = []
         for name, repo_info in project_spec.repos.items():
-            total_steps = len(repo_info.refspec_info) + 1
             repo_processor = RepoProcessor(
                 project_spec.workdir,
                 name,
