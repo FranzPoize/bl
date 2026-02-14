@@ -152,6 +152,15 @@ class RepoProcessor:
                     + "Use patch_globs properties in spec.yaml instead.",
                     DeprecationWarning,
                 )
+                cmd_args = cmd.split(" ")
+                glob = cmd_args[-1]
+                ret, err = await self.check_and_apply_patch(glob, module_path)
+                self.progress.update(
+                    self.task_id,
+                    status=f"[red]Applying patch {glob}: {err}",
+                )
+                return ret
+
             self.progress.update(self.task_id, status=f"Running shell command: {cmd}...")
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -164,7 +173,6 @@ class RepoProcessor:
             if proc.returncode != 0:
                 # This is a sanity check because people usually put "git am" commands
                 # in shell_commands, so we abort any ongoing git am
-                await run_git("am", "--abort", cwd=str(module_path))
                 self.progress.update(
                     self.task_id,
                     status=f"[red]Shell command failed: {cmd}\nError: {stderr.decode().strip()}",
@@ -225,12 +233,6 @@ class RepoProcessor:
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
         if len(repo_info.refspec_info) > 1 and s_out == "true":
             await run_git("fetch", "--unshallow", cwd=module_path)
-
-        reset_target = get_local_ref(root_refspec_info)
-        ret, out, err = await run_git("reset", "--hard", reset_target, cwd=module_path)
-        if ret != 0:
-            self.progress.update(self.task_id, status=f"[red]Reset failed: {err}")
-            return ret
 
         return 0
 
@@ -368,11 +370,23 @@ class RepoProcessor:
         fetch_steps = len(self.repo_info.remotes)
         merge_count = len(self.repo_info.refspec_info) - 1
         command_count = len(self.repo_info.shell_commands)
-        patch_count = len(self.repo_info.shell_commands)
+        patch_count = len(self.repo_info.patch_globs_to_apply)
         link_step = 1
         count_step = clone_steps + fetch_steps + merge_count + command_count + patch_count + link_step
 
         return count_step
+
+    async def check_and_apply_patch(self, glob: str, module_path: Path) -> tuple[int, str]:
+        patch_files = [p.relative_to(module_path) for p in list(module_path.glob(glob))]
+        c_ret, c_out, c_err = await run_git("apply", "--reverse", "--check", *patch_files, cwd=module_path)
+        if c_ret == 0:
+            # Patch is already applied we don't need to do it again
+            return 0, ""
+        ret, out, err = await run_git("am", *patch_files, cwd=module_path)
+        if ret != 0:
+            await run_git("am", "--abort", cwd=module_path)
+            return -1, err
+        return 0, ""
 
     async def process_repo(self) -> int:
         """Processes a single ModuleSpec."""
@@ -444,10 +458,9 @@ class RepoProcessor:
                 self.progress.advance(self.task_id)
 
                 for glob in self.repo_info.patch_globs_to_apply:
-                    self.progress.update(self.task_id, status=f"Applying patches: {glob}...", advance=0.1)
-                    ret, out, err = await run_git("am", glob, cwd=module_path)
+                    self.progress.update(self.task_id, status=f"Applying patches: {glob}...")
+                    ret, err = await self.check_and_apply_patch(glob, module_path)
                     if ret != 0:
-                        await run_git("am", "--abort", cwd=module_path)
                         self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
                         return ret
                     self.progress.advance(self.task_id)

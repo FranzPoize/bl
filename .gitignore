@@ -14,3 +14,6 @@ benchmark/**/src/
 benchmark/ak_benchmark/noukies-frz.yaml
 benchmark/bl_benchmark/noukies-frz.yaml
 benchmark/ak_benchmark/repo.yaml
+benchmark/bl_benchmark/patches/account-invoicing
+benchmark/bl_benchmark/patches/sale-workflow
+benchmark/bl_benchmark/abilis-frz.yaml
