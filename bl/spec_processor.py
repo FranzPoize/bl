@@ -199,7 +199,6 @@ class RepoProcessor:
 
         local_ref = get_local_ref(root_refspec_info)
         ret, out, err = await run_git("checkout", "-b", local_ref, cwd=module_path)
-        await run_git("sparse-checkout", "init", "--cone", cwd=module_path)
 
         return 0
 
@@ -435,6 +434,8 @@ class RepoProcessor:
                         return -1
                     self.progress.advance(self.task_id)
 
+                # We sparse checkout after the merge because it's faster to do it
+                # in this order
                 await self.setup_sparse_checkout(symlink_modules, module_path)
 
                 ret = await self.run_shell_commands(self.repo_info, module_path)
