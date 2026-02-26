@@ -1,21 +1,21 @@
 import asyncio
+import logging
 import os
 import warnings
 from pathlib import Path
 from typing import Dict, List
 
-from rich import progress
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
-from typing_extensions import deprecated
 
 from bl.utils import english_env, get_local_ref, get_module_path, run_git
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 # TODO(franz): it's a bit better now but better keep an eye on it
 # TODO(franz): Error handling should be watch carefully because if
@@ -59,6 +59,10 @@ def create_clone_args(clone_info: CloneInfo) -> List[str]:
     args = [
         "clone",
         "--filter=tree:0",
+        "--config",
+        "feature.manyFiles=true",
+        "--config",
+        "feature.experimental=true",
     ]
 
     if clone_info.clone_flags & CloneFlags.SHALLOW:
@@ -124,18 +128,14 @@ class RepoProcessor:
         self.concurrency = concurrency
 
     async def clone_or_reset_and_setup_repo(self, module_path: Path, symlink_modules: List[str]):
+        clone_info = clone_info_from_repo(self.name, self.repo_info)
         if check_path_is_repo(module_path):
-            clone_info = clone_info_from_repo(self.name, self.repo_info)
             ret = await self.setup_new_repo(clone_info, module_path)
         else:
             ret = await self.reset_repo_for_work(module_path)
 
         if ret != 0:
             return -1
-
-        checkout_target = "merged"
-
-        await run_git("checkout", "-b", checkout_target, cwd=module_path)
 
         for remote, remote_url in self.repo_info.remotes.items():
             await run_git("remote", "add", remote, remote_url, cwd=module_path)
@@ -217,7 +217,7 @@ class RepoProcessor:
 
         if out != "":
             self.progress.update(self.task_id, status=f"[red]Repo is dirty:\n{out}")
-            return ret
+            return -1
         if ret != 0:
             self.progress.update(self.task_id, status="[red]Repo does not exist")
             return ret
@@ -227,7 +227,7 @@ class RepoProcessor:
 
         self.progress.update(
             self.task_id,
-            status=(f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}"),
+            status=f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}",
         )
 
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
@@ -235,6 +235,26 @@ class RepoProcessor:
             await run_git("fetch", "--unshallow", cwd=module_path)
 
         return 0
+
+    async def setup_main_branch(self, module_path: Path) -> int:
+        ret, out, err = await run_git("rev-parse", "--verify", "merged")
+        should_have_merged_branch = len(self.repo_info.refspec_info) > 1
+        has_merged_branch = ret == 0
+
+        ret, out, err = await run_git("checkout", get_local_ref(self.repo_info.refspec_info[0]), cwd=module_path)
+        if ret != 0:
+            self.progress.update(
+                self.task_id,
+                status=f"[ref]Could not checkout base branch: {err}",
+            )
+            return ret
+
+        if has_merged_branch and not should_have_merged_branch:
+            await run_git("branch", "-D", "merged", cwd=module_path)
+
+        if should_have_merged_branch:
+            ret, out, err = await run_git("switch", "-C", "merged", cwd=module_path)
+            logger.debug(f"{ret} {out} {err}")
 
     async def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
         links_path = self.workdir / "links"
@@ -265,9 +285,6 @@ class RepoProcessor:
         root_refspec_info: RefspecInfo,
         module_path: Path,
     ) -> tuple[int, str]:
-        # This is weird...
-        remote_url = spec.remotes.get(refspec_info.remote) or refspec_info.remote
-
         local_ref = get_local_ref(refspec_info)
         remote_ref = refspec_info.refspec
 
@@ -303,6 +320,7 @@ class RepoProcessor:
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
             "fetch",
+            "--update-head-ok",
             "-j",
             str(self.concurrency),
             remote,
@@ -436,8 +454,14 @@ class RepoProcessor:
                 # a big issue but it could be better
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
-                    await self.fetch_multi(remote, refspec_list, module_path)
+                    f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
+                    if f_ret != 0:
+                        logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
                     self.progress.advance(self.task_id)
+
+                ret, _, _ = await self.setup_main_branch(module_path)
+                if ret != 0:
+                    return ret
 
                 # Merge everything into the main branch
                 for refspec_info in self.repo_info.refspec_info[1:]:
