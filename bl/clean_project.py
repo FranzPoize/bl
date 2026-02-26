@@ -5,6 +5,7 @@ from bl.spec_processor import console
 from bl.types import ProjectSpec
 
 
+# TODO(franz) It should list all the target_folders in the spec and delete all of those
 def _clean_directory(path: Path, non_interactive: bool) -> bool:
     """Return True if a deletion failed, False otherwise."""
     abs_path = path.resolve()
@@ -50,4 +51,3 @@ def clean_project(project_spec: ProjectSpec, non_interactive: bool = False) -> i
             failed = True
 
     return 1 if failed else 0
-

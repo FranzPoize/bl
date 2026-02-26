@@ -51,19 +51,15 @@ def test_frozen_sha_populated_from_mapping() -> None:
         project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None, "ProjectSpec should not be None"
 
-        sale = project.specs["sale-promotion"]
-        assert sale.frozen_modules == frozen_mapping["sale-promotion"]
+        sale = project.repos["sale-promotion"]
         assert sale.refspec_info is not None
-        assert [r.refspec for r in sale.refspec_info] == [
-            "14.0",
-            "refs/pull/188/head",
-            "14.0-sale_coupon_invoice_delivered",
-        ]
-        assert [r.frozen_sha for r in sale.refspec_info] == [
+        # When a frozen SHA is provided, the refspec is expected to be that SHA
+        expected_hashes = [
             frozen_mapping["sale-promotion"]["oca"]["14.0"],
             frozen_mapping["sale-promotion"]["oca"]["refs/pull/188/head"],
             frozen_mapping["sale-promotion"]["ak"]["14.0-sale_coupon_invoice_delivered"],
         ]
+        assert [r.refspec for r in sale.refspec_info] == expected_hashes
 
 
 def test_frozen_modules_none_when_section_missing() -> None:
@@ -105,11 +101,10 @@ def test_frozen_modules_none_when_section_missing() -> None:
         project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None
 
-        queue = project.specs["queue"]
-        assert queue.frozen_modules is None
+        queue = project.repos["queue"]
         assert queue.refspec_info is not None
         assert len(queue.refspec_info) == 1
-        assert queue.refspec_info[0].frozen_sha is None
+        assert queue.refspec_info[0].ref_name is None
 
 
 def test_frozen_sha_none_when_refspec_missing() -> None:
@@ -147,8 +142,8 @@ def test_frozen_sha_none_when_refspec_missing() -> None:
         project = load_spec_file(spec_path, frozen_path, td_path)
         assert project is not None
 
-        sale = project.specs["sale-promotion"]
+        sale = project.repos["sale-promotion"]
         assert sale.refspec_info is not None
         assert len(sale.refspec_info) == 2
-        assert sale.refspec_info[0].frozen_sha == "a" * 40  # Has freeze
-        assert sale.refspec_info[1].frozen_sha is None  # Missing freeze
+        assert sale.refspec_info[0].refspec == "a" * 40  # Has freeze
+        assert sale.refspec_info[1].ref_name is None  # Missing freeze

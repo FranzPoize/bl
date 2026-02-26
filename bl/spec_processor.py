@@ -247,7 +247,7 @@ class RepoProcessor:
                 self.task_id,
                 status=f"[ref]Could not checkout base branch: {err}",
             )
-            return ret
+            return ret, out, err
 
         if has_merged_branch and not should_have_merged_branch:
             await run_git("branch", "-D", "merged", cwd=module_path)
@@ -255,6 +255,8 @@ class RepoProcessor:
         if should_have_merged_branch:
             ret, out, err = await run_git("switch", "-C", "merged", cwd=module_path)
             logger.debug(f"{ret} {out} {err}")
+
+        return 0, "", ""
 
     async def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
         links_path = self.workdir / "links"
