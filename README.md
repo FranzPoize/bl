@@ -1,4 +1,5 @@
 # bl
+[![CI](https://github.com/FranzPoize/bl/actions/workflows/ci-publish.yml/badge.svg)](https://github.com/FranzPoize/bl/actions/workflows/ci-publish.yml) [![codecov](https://codecov.io/github/FranzPoize/bl/graph/badge.svg?token=JWD4KU0PEN)](https://codecov.io/github/FranzPoize/bl)
 
 ## Why BL
 
