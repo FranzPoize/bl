@@ -100,7 +100,7 @@ It will only download the french and english translation instead of all of them
 
 ## I have warnings about patch globs
 
-There is a new property to handle "git am <patch_glob>"
+There is a new property to handle `git am <patch_glob>` (the old one still works but I hope to remove it at some point)
 
 Before:
 ```yaml
