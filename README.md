@@ -12,43 +12,66 @@ Because `ak` is a bit slow and I was tired of waiting around
 
 For all those command `bl` will try to look in the current directory. If it does find the spec file
  it will try to look in the child `odoo` directory. (i.e. you can launch `bl` in the root of you project)
+You can also override the default paths and verbosity with:
+
+- `-c/--config`: path to the project spec file (default: `spec.yaml`)
+- `-z/--frozen`: path to the frozen spec file (default: `frozen.yaml`)
+- `-j/--concurrency`: number of concurrent tasks (default: `28`)
+- `-w/--workdir`: working directory, defaults to the directory of `--config`
+- `--log-level`: one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `WARNING`)
 
 ### Build
 
-```bl build -c <path_to_spec.yaml> -z <path_to_frozen.yaml> -j <concurrency>```
+```bash
+bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+```
 
 #### What does it do
 It does what ak build does
 
 #### Params
-* `path_to_spec.yaml` should be the path to your spec (default: spec.yaml)
-* `path_to_frozen.yaml` should be the path to your spec (default: frozen.yaml)
-* `concurrency` number of module clone simultaneously (default: 28)
+* `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
+* `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
+* `CONCURRENCY` number of module clone simultaneously (default: `28`)
+* `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `LEVEL` log level (see `--log-level` above)
 
 #### How it looks
 <img width="1683" height="756" alt="bl_build" src="https://github.com/user-attachments/assets/22fc1565-3a54-4f57-9b85-a11263b9b536" />
 
 ### Freeze
 
-```bl freeze -c <path_to_spec.yaml> -z <path_to_frozen.yaml> -j <concurrency>```
+```bash
+bl freeze [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+```
 
 #### What does it do
 It does what ak freeze does
 
 #### Params
-* `path_to_spec.yaml` should be the path to your spec (default: spec.yaml)
-* `path_to_frozen.yaml` should be the path to your spec (default: frozen.yaml)
-* `concurrency` number of module clone simultaneously (default: 28)
+* `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
+* `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
+* `CONCURRENCY` number of module clone simultaneously (default: `28`)
+* `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `LEVEL` log level (see `--log-level` above)
 
 ### Clean
 
-```bl clean -c <path_to_spec.yaml>```
+```bash
+bl clean [-c PATH_TO_SPEC] [-w WORKDIR] [--log-level LEVEL] [--i-am-stupid] [--dirty]
+```
 
 #### What does it do
-It asks you if you want to delete `external-src` and `src` and then deletes it
+By default it asks you if you want to delete `external-src` and `src` under the workdir and then deletes them.
+With `--i-am-stupid` it deletes those directories without prompting.
+With `--dirty` it additionally scans all repos in the spec for dirty git state and offers to clean them with `git reset --hard`.
 
 #### Params
-* `path_to_spec.yaml` should be the path to your spec (default: spec.yaml)
+* `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
+* `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `LEVEL` log level (see `--log-level` above)
+* `--i-am-stupid` delete `src` and `external-src` non‑interactively
+* `--dirty` also inspect repos and optionally clean dirty ones with `git reset --hard`
 
 ## Odoo is taking a really long time to clone
 

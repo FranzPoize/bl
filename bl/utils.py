@@ -1,5 +1,6 @@
 import asyncio
 import os
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +11,17 @@ from bl.types import RepoInfo, OriginType, RefspecInfo
 english_env = os.environ.copy()
 # Ensure git outputs in English for consistent parsing
 english_env["LANG"] = "en_US.UTF-8"
+
+logger = logging.getLogger(__name__)
+
+
+def format_diff(diff_message):
+    split_message = diff_message.split("\n")
+
+    if len(split_message) > 5:
+        split_message = split_message[:5] + ["..."]
+
+    return "\n".join(split_message)
 
 
 def get_module_path(workdir: Path, module_name: str, module_spec: RepoInfo) -> Path:
@@ -33,6 +45,7 @@ def get_local_ref(origin: RefspecInfo) -> str:
 
 
 async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
+    logger.debug(f"In {str(cwd)}: git {' '.join([str(a) for a in args])}")
     """Executes a git command asynchronously."""
     proc = await asyncio.create_subprocess_exec(
         "git",
@@ -46,4 +59,5 @@ async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str
     )
     stdout, stderr = await proc.communicate()
     returncode = proc.returncode if proc.returncode is not None else -1
+    logger.debug(f"{returncode} - {stdout.decode().strip()} - {stdout.decode().strip()}")
     return returncode, stdout.decode().strip(), stderr.decode().strip()

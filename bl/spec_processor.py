@@ -10,7 +10,7 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl.utils import english_env, get_local_ref, get_module_path, run_git
+from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run_git
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
@@ -211,12 +211,10 @@ class RepoProcessor:
         return 0
 
     async def reset_repo_for_work(self, module_path: Path) -> int:
-        # TODO(franz): we should test if the folder is a git repo or not
-
         ret, out, err = await run_git("status", "--porcelain", cwd=module_path)
 
         if out != "":
-            self.progress.update(self.task_id, status=f"[red]Repo is dirty:\n{out}")
+            self.progress.update(self.task_id, status=f"[red]Repo is dirty:\n{format_diff(out)}")
             return -1
         if ret != 0:
             self.progress.update(self.task_id, status="[red]Repo does not exist")
@@ -229,15 +227,20 @@ class RepoProcessor:
             self.task_id,
             status=f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}",
         )
-
-        s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
-        if len(repo_info.refspec_info) > 1 and s_out == "true":
-            await run_git("fetch", "--unshallow", cwd=module_path)
-
         return 0
 
+    async def unshallow_if_necessary(self, module_path: Path):
+        s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
+        if len(self.repo_info.refspec_info) > 1 and s_out == "true":
+            ret, out, err = await run_git("fetch", "--unshallow", cwd=module_path)
+
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"Unshallow unsucessful for {self.name}")
+            return ret, out, err
+        return 0, "", ""
+
     async def setup_main_branch(self, module_path: Path) -> int:
-        ret, out, err = await run_git("rev-parse", "--verify", "merged")
+        ret, out, err = await run_git("rev-parse", "--verify", "merged", cwd=module_path)
         should_have_merged_branch = len(self.repo_info.refspec_info) > 1
         has_merged_branch = ret == 0
 
@@ -254,7 +257,6 @@ class RepoProcessor:
 
         if should_have_merged_branch:
             ret, out, err = await run_git("switch", "-C", "merged", cwd=module_path)
-            logger.debug(f"{ret} {out} {err}")
 
         return 0, "", ""
 
@@ -290,9 +292,6 @@ class RepoProcessor:
         local_ref = get_local_ref(refspec_info)
         remote_ref = refspec_info.refspec
 
-        # Merge
-        # I think the idea would be to not fetch shallow but fetch treeless and do a merge-base
-        # then fetch the required data and then merge
         self.progress.update(self.task_id, status=f"Merging {local_ref}")
         ret, out, err = await run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
@@ -322,6 +321,7 @@ class RepoProcessor:
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
             "fetch",
+            "-a",
             "--update-head-ok",
             "-j",
             str(self.concurrency),
@@ -431,7 +431,6 @@ class RepoProcessor:
 
                 # First thing we need to do is setup the repos
                 # - If the repo does not exist we need to clone it
-                # - If it exists we need to reset some branch to a good state
                 # - then we add all the remote
                 #   - We should check if the remote are properly created
                 #     remote can already created I don't thinkk git notifies
@@ -451,19 +450,27 @@ class RepoProcessor:
                     self.repo_info.refspec_info
                 )
 
+                ret, _, _ = await self.setup_main_branch(module_path)
+                if ret != 0:
+                    return ret
+
+                ret, _, _ = await self.unshallow_if_necessary(module_path)
+
+                if ret != 0:
+                    return ret
+
                 # TODO(franz): right now we fetch everything so when the repo is just cloned
                 # we fetch the base branch twice. Since we fetch with multi this is probably not
                 # a big issue but it could be better
+                # INFO(franz): I think this ok right now it's keep the code simple and the data
+                # flow is better this way and the performance gain is I think small
+                # One idea would be to use bare repo so that we fetch absolutely nothing on clone
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
                     f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
                     if f_ret != 0:
                         logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
                     self.progress.advance(self.task_id)
-
-                ret, _, _ = await self.setup_main_branch(module_path)
-                if ret != 0:
-                    return ret
 
                 # Merge everything into the main branch
                 for refspec_info in self.repo_info.refspec_info[1:]:
