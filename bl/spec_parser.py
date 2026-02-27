@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Type
 
 import yaml
 
-from bl.types import RepoInfo, OriginType, ProjectSpec, RefspecInfo
+from bl.types import OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
 
 def make_remote_merge_from_src(src: str) -> tuple[dict, list]:
@@ -51,15 +51,21 @@ def get_origin_type(origin_value: str) -> OriginType:
         return OriginType.BRANCH
 
 
-def parse_remote_refspec_from_parts(parts: List[str], frozen_repo: Dict[str, Dict[str, str]]):
-    if len(parts) == 2:
-        parts.insert(1, "")
+def parse_remote_refspec_from_entry(entry: List[str] | Dict[str, str], frozen_repo: Dict[str, Dict[str, str]]):
+    if isinstance(entry, list):
+        if len(entry) == 2:
+            entry.insert(1, "")
+        else:
+            warnings.warn(
+                "Deprecated src format: use <url> <sha> format for the src property",
+                DeprecationWarning,
+            )
+        remote_key, _, ref_spec = entry
     else:
-        warnings.warn(
-            "Deprecated src format: use <url> <sha> format for the src property",
-            DeprecationWarning,
-        )
-    remote_key, _, ref_spec = parts
+        remote_key = entry.get("remote")
+        # Here 16.0 can be parsed as float, todo: change spec to a sane file format
+        ref_spec = str(entry.get("ref"))
+
     ref_type = get_origin_type(ref_spec)
 
     ref_name = None
@@ -146,8 +152,10 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
             merges = src_merges + merges
 
         for merge_entry in merges:
-            parts = merge_entry.split(" ", 2)
-            refspec_info = parse_remote_refspec_from_parts(parts, frozen_repo)
+            if isinstance(merge_entry, str):
+                merge_entry = merge_entry.split(" ", 2)
+
+            refspec_info = parse_remote_refspec_from_entry(merge_entry, frozen_repo)
             refspec_infos.append(refspec_info)
 
         repos[repo_name] = RepoInfo(
