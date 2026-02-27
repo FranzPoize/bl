@@ -239,16 +239,50 @@ class RepoProcessor:
             return ret, out, err
         return 0, "", ""
 
+    async def checkout_or_create_base_branch(
+        self, base_refspec: RefspecInfo, module_path: Path
+    ) -> tuple[int, str, str]:
+        refspec = base_refspec.ref_name if base_refspec.ref_name else base_refspec.refspec
+
+        ret, _, _ = await run_git("rev-parse", "--verify", refspec, cwd=module_path)
+        has_base_branch = ret == 0
+
+        if has_base_branch:
+            ret, out, err = await run_git(
+                "checkout",
+                refspec,
+                cwd=module_path,
+            )
+            return ret, out, err
+
+        ret, _, _ = await run_git("rev-parse", "--verify", f"origin/{refspec}", cwd=module_path)
+        has_remote_branch = ret == 0
+        if has_remote_branch:
+            ret, out, err = await run_git(
+                "checkout",
+                "--track",
+                f"origin/{refspec}",
+                cwd=module_path,
+            )
+            return ret, out, err
+
+        return (
+            -1,
+            "",
+            f"Can't find base branch {refspec}",
+        )
+
     async def setup_main_branch(self, module_path: Path) -> int:
         ret, out, err = await run_git("rev-parse", "--verify", "merged", cwd=module_path)
         should_have_merged_branch = len(self.repo_info.refspec_info) > 1
         has_merged_branch = ret == 0
 
-        ret, out, err = await run_git("checkout", get_local_ref(self.repo_info.refspec_info[0]), cwd=module_path)
+        base_refspec = self.repo_info.refspec_info[0]
+        ret, out, err = await self.checkout_or_create_base_branch(base_refspec, module_path)
         if ret != 0:
             self.progress.update(
                 self.task_id,
-                status=f"[ref]Could not checkout base branch: {err}",
+                status=f"[ref]Could not checkout base branch {base_refspec.ref_name}: {err}",
             )
             return ret, out, err
 
