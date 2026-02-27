@@ -17,3 +17,5 @@ benchmark/ak_benchmark/repo.yaml
 benchmark/bl_benchmark/patches/account-invoicing
 benchmark/bl_benchmark/patches/sale-workflow
 benchmark/bl_benchmark/abilis-frz.yaml
+/dev_folder
+/dev_tool
