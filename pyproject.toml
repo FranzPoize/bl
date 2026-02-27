@@ -22,6 +22,7 @@ dev = [
     "nest-asyncio>=1.6.0",
     "pytest",
     "pytest-asyncio",
+    "pytest-cov>=7.0.0",
 ]
 
 [project.scripts]
