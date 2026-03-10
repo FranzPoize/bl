@@ -297,10 +297,6 @@ class RepoProcessor:
         )
 
     async def setup_main_branch(self, module_path: Path) -> int:
-        ret, out, err = await run_git("rev-parse", "--verify", "merged", cwd=module_path)
-        should_have_merged_branch = len(self.repo_info.refspec_info) > 1
-        has_merged_branch = ret == 0
-
         base_refspec = self.repo_info.refspec_info[0]
         ret, out, err = await self.checkout_or_create_base_branch(base_refspec, module_path)
         if ret != 0:
@@ -309,6 +305,12 @@ class RepoProcessor:
                 status=f"[ref]Could not checkout base branch {base_refspec.ref_name or base_refspec.refspec}: {err}",
             )
             return ret, out, err
+        return 0, "", ""
+
+    async def setup_merged_branch(self, module_path: Path) -> int:
+        ret, out, err = await run_git("rev-parse", "--verify", "merged", cwd=module_path)
+        should_have_merged_branch = len(self.repo_info.refspec_info) > 1
+        has_merged_branch = ret == 0
 
         if has_merged_branch and not should_have_merged_branch:
             await run_git("branch", "-D", "merged", cwd=module_path)
@@ -407,9 +409,7 @@ class RepoProcessor:
 
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
-            "fetch",
-            "-a",
-            "--update-head-ok",
+            "pull",
             "-j",
             str(self.concurrency),
             remote,
@@ -564,7 +564,6 @@ class RepoProcessor:
                     )
 
                     ret, _, _ = await self.unshallow_if_necessary(module_path)
-
                     if ret != 0:
                         return ret
 
@@ -581,7 +580,11 @@ class RepoProcessor:
                             logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
                         self.progress.advance(self.task_id)
 
-                    ret, _, _ = await self.setup_main_branch(module_path)
+                    # ret, _, _ = await self.setup_main_branch(module_path)
+                    # if ret != 0:
+                    #     return ret
+                    #
+                    ret, _, _ = await self.setup_merged_branch(module_path)
                     if ret != 0:
                         return ret
 
@@ -592,44 +595,6 @@ class RepoProcessor:
                         )
                     ret = await self.clone_or_reset_and_setup_repo(module_path, git_modules)
                     self.progress.advance(self.task_id)
-
-                    if ret != 0:
-                        return ret
-
-                    refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
-                        self.repo_info.refspec_info
-                    )
-
-                    ret, _, _ = await self.setup_main_branch(module_path)
-                    if ret != 0:
-                        return ret
-
-                    ret, _, _ = await self.unshallow_if_necessary(module_path)
-
-                    if ret != 0:
-                        return ret
-
-                    # TODO(franz): right now we fetch everything so when the repo is just cloned
-                    # we fetch the base branch twice. Since we fetch with multi this is probably not
-                    # a big issue but it could be better
-                    # INFO(franz): I think this ok right now it's keep the code simple and the data
-                    # flow is better this way and the performance gain is I think small
-                    # One idea would be to use bare repo so that we fetch absolutely nothing on clone
-                    for remote, refspec_list in refspec_by_remote.items():
-                        self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
-                        f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
-                        if f_ret != 0:
-                            logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
-                        self.progress.advance(self.task_id)
-
-                    # Merge everything into the main branch
-                    for refspec_info in self.repo_info.refspec_info[1:]:
-                        ret, err = await self.merge_spec_into_tree(
-                            self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
-                        )
-                        if ret != 0:
-                            return -1
-                        self.progress.advance(self.task_id)
 
                     # We sparse checkout after the merge because it's faster to do it
                     # in this order
