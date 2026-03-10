@@ -1,6 +1,6 @@
-from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum, IntEnum
+from pathlib import Path
 from typing import Dict, List, Optional
 
 
@@ -62,6 +62,7 @@ class RepoInfo:
         patch_globs_to_apply: List[str] = [],
         target_folder: Optional[str] = None,
         locales: List[str] = [],
+        paths: Dict[str, List[str]] = {},
     ):
         self.modules = modules
         self.remotes = remotes
@@ -70,9 +71,10 @@ class RepoInfo:
         self.patch_globs_to_apply = patch_globs_to_apply
         self.target_folder = target_folder
         self.locales = locales
+        self.paths = paths
 
     def __repr__(self) -> str:
-        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info})"
+        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info}, paths={self.paths})"
 
 
 class ProjectSpec:
