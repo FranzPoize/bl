@@ -86,7 +86,36 @@ def get_with_syntax_check(name, data, key: str, type: Type):
     return result
 
 
-def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[ProjectSpec]:
+def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> None:
+    """
+    Recursively merges the override configuration into the base configuration.
+
+    Args:
+        base: The original configuration dictionary to be modified.
+        override: The configuration dictionary with override values.
+
+    This function modifies the base dictionary in place, merging values from the override dictionary.
+    If a key exists in both dictionaries and both values are dictionaries, they will be merged recursively.
+    Otherwise, the value from the override dictionary will replace the value in the base dictionary.
+    """
+    for key, override_value in override.items():
+        if key in base:
+            base_value = base[key]
+            if isinstance(base_value, dict) and isinstance(override_value, dict):
+                merge_configs(base_value, override_value)
+            elif isinstance(base_value, list) and isinstance(override_value, list):
+                if "..." in override_value:
+                    extend_idx = override_value.index("...")
+                    base[key] = override_value[:extend_idx] + base_value + override_value[extend_idx + 1 :]
+                else:
+                    base[key] = override_value
+            else:
+                base[key] = override_value
+        else:
+            base[key] = override_value
+
+
+def load_spec_file(config: Path, frozen: Path, workdir: Path, override: Path | None = None) -> Optional[ProjectSpec]:
     """
     Loads and parses the project specification from a YAML file.
 
@@ -118,6 +147,15 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
         except yaml.YAMLError as e:
             print(f"Error parsing YAML file '{config}': {e}")
             return None
+
+    if override and override.exists():
+        try:
+            with override.open("r") as override_file:
+                override_data = yaml.safe_load(override_file) or {}
+                if isinstance(override_data, dict):
+                    merge_configs(data, override_data)
+        except yaml.YAMLError as e:
+            print(f"Error parsing override YAML file '{override}': {e}")
 
     frozen_mapping: Dict[str, Dict[str, Dict[str, str]]] = {}
     frozen_path = frozen or Path(config).with_name("frozen.yaml")

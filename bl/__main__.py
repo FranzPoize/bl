@@ -80,6 +80,12 @@ def run():
         "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
     )
     parent_parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
+    parent_parser.add_argument(
+        "-o",
+        "--config-override",
+        type=Path,
+        help="Path to an override config to extend the project specification.",
+    )
     parent_parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
     parent_parser.add_argument(
         "-b", "--use-bindfs", action="store_true", help="Use bindfs instead of creating symlinks."
@@ -113,7 +119,7 @@ def run():
     level_name = args.log_level
     setup_logging(level_name)
 
-    project_spec = load_spec_file(args.config, args.frozen, args.workdir)
+    project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
     if project_spec is None:
         sys.exit(1)
 
