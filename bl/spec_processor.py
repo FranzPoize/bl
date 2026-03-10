@@ -353,7 +353,6 @@ class RepoProcessor:
                     await asyncio.to_thread(dest_path.mkdir, exist_ok=True)
                     mount = await asyncio.create_subprocess_exec(
                         "bindfs",
-                        "-n",
                         str(src_path),
                         str(dest_path),
                         env=english_env,

@@ -88,7 +88,10 @@ def run():
     )
     parent_parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
     parent_parser.add_argument(
-        "-b", "--use-bindfs", action="store_true", help="Use bindfs instead of creating symlinks."
+        "-b",
+        "--use-bindfs",
+        action="store_true",
+        help="Use bindfs instead of creating symlinks (must have user_allow_other in /etc/fuse.conf).",
     )
     parent_parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
     parent_parser.add_argument(
