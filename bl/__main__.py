@@ -1,9 +1,10 @@
 import argparse
 import asyncio
-import logging, logging.handlers
-import sys
-import queue
 import atexit
+import logging
+import logging.handlers
+import queue
+import sys
 from pathlib import Path
 
 from rich.console import Console
@@ -80,6 +81,9 @@ def run():
     )
     parent_parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
     parent_parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
+    parent_parser.add_argument(
+        "-b", "--use-bindfs", action="store_true", help="Use bindfs instead of creating symlinks."
+    )
     parent_parser.add_argument("-w", "--workdir", type=Path, help="Working directory. Defaults to config directory.")
     parent_parser.add_argument(
         "--log-level",
@@ -117,7 +121,7 @@ def run():
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
-            asyncio.run(process_project(project_spec, concurrency=args.concurrency))
+            asyncio.run(process_project(project_spec, concurrency=args.concurrency, use_bindfs=args.use_bindfs))
         elif args.command == "clean":
             ret = clean_project(
                 project_spec,

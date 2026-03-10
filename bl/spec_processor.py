@@ -10,9 +10,8 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run_git
-
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
+from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run_git
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -117,6 +116,7 @@ class RepoProcessor:
         count_progress: Progress,
         count_task: TaskID,
         concurrency: int,
+        use_bindfs: bool = False,
     ):
         self.workdir = workdir
         self.name = name
@@ -126,6 +126,7 @@ class RepoProcessor:
         self.count_progress = count_progress
         self.count_task = count_task
         self.concurrency = concurrency
+        self.use_bindfs = use_bindfs
 
     async def clone_or_reset_and_setup_repo(self, module_path: Path, symlink_modules: List[str]):
         clone_info = clone_info_from_repo(self.name, self.repo_info)
@@ -321,19 +322,34 @@ class RepoProcessor:
         links_path = self.workdir / "links"
         await asyncio.to_thread(links_path.mkdir, exist_ok=True)
 
-        # Remove all symlink
-
         for module_name in module_list:
             try:
-                path_src_symlink = module_path / module_name
-                path_dest_symlink = links_path / module_name
+                src_path = module_path / module_name
+                dest_path = links_path / module_name
 
-                if path_dest_symlink.is_symlink():
-                    path_dest_symlink.unlink()
+                if dest_path.is_symlink():
+                    await asyncio.to_thread(os.unlink, dest_path)
+                elif dest_path.is_mount():
+                    umount = await asyncio.create_subprocess_exec("umount", str(dest_path), env=english_env)
+                    await umount.wait()
+                if dest_path.is_dir():
+                    await asyncio.to_thread(dest_path.rmdir)
 
-                await asyncio.to_thread(
-                    os.symlink, path_src_symlink.relative_to(links_path, walk_up=True), path_dest_symlink, True
-                )
+                if self.use_bindfs:
+                    # Create the destination directory if it doesn't exist, bindfs requires it to exist
+                    await asyncio.to_thread(dest_path.mkdir, exist_ok=True)
+                    mount = await asyncio.create_subprocess_exec(
+                        "bindfs",
+                        "-n",
+                        str(src_path),
+                        str(dest_path),
+                        env=english_env,
+                    )
+                    if await mount.wait() != 0:
+                        return -1, f"Failed to bind mount {src_path} to {dest_path}"
+
+                else:
+                    await asyncio.to_thread(os.symlink, src_path.relative_to(links_path, walk_up=True), dest_path, True)
             except OSError as e:
                 return -1, str(e)
 
@@ -398,7 +414,7 @@ class RepoProcessor:
         base_path_links = self.workdir / "links"
         for module in spec.modules:
             path = base_path_links / module
-            if path.is_symlink() or not path.exists():
+            if path.is_symlink() or path.is_mount() or not path.exists():
                 result.append(module)
             else:
                 console.print(
@@ -573,7 +589,7 @@ class RepoProcessor:
         return 0
 
 
-async def process_project(project_spec: ProjectSpec, concurrency: int) -> None:
+async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
     """Processes all modules in a ProjectSpec."""
     (project_spec.workdir / "external-src").mkdir(parents=True, exist_ok=True)
 
@@ -613,6 +629,7 @@ async def process_project(project_spec: ProjectSpec, concurrency: int) -> None:
                 task_count_progress,
                 count_task,
                 concurrency,
+                use_bindfs,
             )
             tasks.append(repo_processor.process_repo())
 
