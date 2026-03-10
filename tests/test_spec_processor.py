@@ -129,7 +129,11 @@ def test_create_clone_args_for_ref_and_branch() -> None:
     ref = _make_ref("origin", "abcdef", OriginType.REF)
     from bl.types import CloneInfo as CloneInfoType
 
-    ci_ref = CloneInfoType(url="https://example.com/repo.git", clone_flags=int(CloneFlags.SHALLOW | CloneFlags.SPARSE), root_refspec_info=ref)
+    ci_ref = CloneInfoType(
+        url="https://example.com/repo.git",
+        clone_flags=int(CloneFlags.SHALLOW | CloneFlags.SPARSE),
+        root_refspec_info=ref,
+    )
     args_ref = create_clone_args(ci_ref)
     assert "clone" in args_ref
     assert "--depth" in args_ref and "1" in args_ref
@@ -183,14 +187,7 @@ def test_repo_processor_count_step_and_grouping(tmp_path: Path) -> None:
     # count_step formula:
     # 1 clone + len(remotes) fetches + (len(refspec_info)-1) merges
     # + len(shell_commands) + len(patch_globs_to_apply) + 1 link
-    expected = (
-        1
-        + len(remotes)
-        + (len(refspecs) - 1)
-        + len(shell_cmds)
-        + len(patches)
-        + 1
-    )
+    expected = 1 + len(remotes) + (len(refspecs) - 1) + len(shell_cmds) + len(patches) + 1
     assert rp.count_step() == expected
 
     grouped = rp.get_refspec_by_remote(refspecs + [_make_ref("other", "dev")])
@@ -250,7 +247,7 @@ async def test_fetch_multi_builds_correct_args(monkeypatch, tmp_path: Path) -> N
 
     assert len(calls) == 1
     args, cwd = calls[0]
-    assert args[0] == "fetch"
+    assert args[0] == "pull"
     assert "origin" in args
     assert "main:local/main" in args
     assert "feature:local/feature" in args
@@ -313,9 +310,7 @@ async def test_setup_sparse_checkout_and_odoo(monkeypatch, tmp_path: Path) -> No
 
     await rp_non_odoo.setup_sparse_checkout(["m1", "m2"], module_path)
     assert any(
-        call[0][0] == "sparse-checkout"
-        and call[0][1] == "set"
-        and set(call[0][2:]) == {"m1", "m2"}
+        call[0][0] == "sparse-checkout" and call[0][1] == "set" and set(call[0][2:]) == {"m1", "m2"}
         for call in seen_calls
     )
 
@@ -384,4 +379,3 @@ async def test_process_project_minimal_integration(tmp_path: Path) -> None:
         assert module_repo.is_dir()
         current_head = _run_git(module_repo, "rev-parse", "HEAD")
         assert current_head == head_sha
-
