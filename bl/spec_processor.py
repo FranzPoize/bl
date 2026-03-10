@@ -344,8 +344,10 @@ class RepoProcessor:
                     await asyncio.to_thread(os.unlink, dest_path)
                 elif dest_path.is_mount():
                     umount = await asyncio.create_subprocess_exec("umount", str(dest_path), env=english_env)
-                    await umount.wait()
-                if dest_path.is_dir():
+                    ret = await umount.wait()
+                    if ret != 0:
+                        return -1, f"Failed to unmount {dest_path}"
+                if dest_path.is_dir() and not dest_path.is_mount():
                     await asyncio.to_thread(dest_path.rmdir)
 
                 if self.use_bindfs:
