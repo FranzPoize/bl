@@ -137,6 +137,8 @@ class RepoProcessor:
         if ret != 0:
             return -1
 
+        ret, _, _ = await self.check_main_remote(module_path)
+
         for remote, remote_url in self.repo_info.remotes.items():
             await run_git("remote", "add", remote, remote_url, cwd=module_path)
             await run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
@@ -229,6 +231,27 @@ class RepoProcessor:
         )
         return 0
 
+    async def check_main_remote(self, module_path: Path) -> tuple[int, str, str]:
+        if len(self.repo_info.remotes) != 1:
+            return 0, "", ""
+
+        remote_name, remote_url = next(iter(self.repo_info.remotes.items()))
+
+        ret, out, err = await run_git("remote", "get-url", remote_name, cwd=module_path)
+        if ret != 0:
+            return ret, out, err
+
+        current_url = out.strip()
+        if current_url != remote_url:
+            await run_git("remote", "remove", remote_name, cwd=module_path)
+            ret, out, err = await run_git("remote", "add", remote_name, remote_url, cwd=module_path)
+            if ret != 0:
+                return ret, out, err
+            await run_git("config", f"remote.{remote_name}.partialCloneFilter", "tree:0", cwd=module_path)
+            await run_git("config", f"remote.{remote_name}.promisor", "true", cwd=module_path)
+
+        return 0, "", ""
+
     async def unshallow_if_necessary(self, module_path: Path):
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
         if len(self.repo_info.refspec_info) > 1 and s_out == "true":
@@ -282,7 +305,7 @@ class RepoProcessor:
         if ret != 0:
             self.progress.update(
                 self.task_id,
-                status=f"[ref]Could not checkout base branch {base_refspec.ref_name}: {err}",
+                status=f"[ref]Could not checkout base branch {base_refspec.ref_name or base_refspec.refspec}: {err}",
             )
             return ret, out, err
 
@@ -484,10 +507,6 @@ class RepoProcessor:
                     self.repo_info.refspec_info
                 )
 
-                ret, _, _ = await self.setup_main_branch(module_path)
-                if ret != 0:
-                    return ret
-
                 ret, _, _ = await self.unshallow_if_necessary(module_path)
 
                 if ret != 0:
@@ -505,6 +524,10 @@ class RepoProcessor:
                     if f_ret != 0:
                         logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
                     self.progress.advance(self.task_id)
+
+                ret, _, _ = await self.setup_main_branch(module_path)
+                if ret != 0:
+                    return ret
 
                 # Merge everything into the main branch
                 for refspec_info in self.repo_info.refspec_info[1:]:
