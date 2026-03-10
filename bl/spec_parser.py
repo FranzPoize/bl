@@ -136,6 +136,7 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
         src = get_with_syntax_check(repo_name, repo_data, "src", str)
         remotes = get_with_syntax_check(repo_name, repo_data, "remotes", dict)
         merges = get_with_syntax_check(repo_name, repo_data, "merges", list)
+        paths = get_with_syntax_check(repo_name, repo_data, "paths", dict)
         shell_commands = get_with_syntax_check(repo_name, repo_data, "shell_command_after", list)
         patch_globs_to_apply = get_with_syntax_check(repo_name, repo_data, "patch_globs", list)
         target_folder = get_with_syntax_check(repo_name, repo_data, "target_folder", str)
@@ -166,6 +167,7 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path) -> Optional[Projec
             patch_globs_to_apply,
             target_folder,
             locales,
+            paths,
         )
 
     return ProjectSpec(repos, workdir)

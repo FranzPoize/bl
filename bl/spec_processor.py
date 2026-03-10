@@ -318,14 +318,27 @@ class RepoProcessor:
 
         return 0, "", ""
 
-    async def link_all_modules(self, module_list: List[str], module_path: Path) -> tuple[int, str]:
+    def local_path(self, module_name: str, local_paths: Dict[str, List[str]]) -> Path | None:
+        for local_path, modules in local_paths.items():
+            if not modules or module_name in modules:  # Empty catch all
+                if "$MODULE" in local_path:
+                    local_path = local_path.replace("$MODULE", module_name)
+                return (self.workdir / local_path / module_name).resolve()
+        return
+
+    async def link_all_modules(
+        self, module_list: List[str], module_path: Path, local_paths: Dict[str, List[str]]
+    ) -> tuple[int, str]:
         links_path = self.workdir / "links"
         await asyncio.to_thread(links_path.mkdir, exist_ok=True)
-
         for module_name in module_list:
             try:
                 src_path = module_path / module_name
                 dest_path = links_path / module_name
+                if local_paths:
+                    local_src_path = self.local_path(module_name, local_paths)
+                    if local_src_path:
+                        src_path = local_src_path
 
                 if dest_path.is_symlink():
                     await asyncio.to_thread(os.unlink, dest_path)
@@ -419,8 +432,28 @@ class RepoProcessor:
             else:
                 console.print(
                     f"[purple]Watchout ![/] {module} is not a symlink and will be assumed "
-                    + "to be a local module\nIt will not be fetched or linked"
+                    "to be a local module\nIt will not be fetched or linked"
                 )
+        return result
+
+    def filter_local_module(self, module_list: List[str], local_paths: Dict[str, List[str]]):
+        if not local_paths:
+            return module_list
+
+        result = []
+        for module_name in module_list:
+            local_path = self.local_path(module_name, local_paths)
+            if local_path:
+                if local_path.exists():
+                    continue
+                else:
+                    console.print(
+                        f"[purple]Watchout ![/] {module_name} is defined as a local module in the spec and "
+                        f"the path {local_path} doesn't exists. It will be assumed to be a remote module "
+                        "and will be fetched and linked accordingly."
+                    )
+            result.append(module_name)
+
         return result
 
     async def setup_odoo_sparse(self, module_spec: RepoInfo, module_path: Path):
@@ -459,9 +492,14 @@ class RepoProcessor:
         # + potential Shell commands
         # + patch to apply
         # + links
-        clone_steps = 1
-        fetch_steps = len(self.repo_info.remotes)
-        merge_count = len(self.repo_info.refspec_info) - 1
+        if self.repo_info.refspec_info:
+            clone_steps = 1
+            fetch_steps = len(self.repo_info.remotes)
+            merge_count = len(self.repo_info.refspec_info) - 1
+        else:
+            clone_steps = 0
+            fetch_steps = 0
+            merge_count = 0
         command_count = len(self.repo_info.shell_commands)
         patch_count = len(self.repo_info.patch_globs_to_apply)
         link_step = 1
@@ -485,6 +523,7 @@ class RepoProcessor:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
+        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths)
 
         async with self.semaphore:
             # As an input we have 3 things for each repo
@@ -498,7 +537,7 @@ class RepoProcessor:
                     status="Waiting...",
                     total=count_step,
                 )
-                if not self.repo_info.refspec_info:
+                if not self.repo_info.refspec_info and not self.repo_info.paths:
                     self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
                     return -1
 
@@ -508,55 +547,92 @@ class RepoProcessor:
                 #   - We should check if the remote are properly created
                 #     remote can already created I don't thinkk git notifies
                 #     us if the remote is not reachable
-
-                self.progress.update(
-                    self.task_id,
-                    status=("Setting up repo ..."),
-                )
-                ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
-                self.progress.advance(self.task_id)
-
-                if ret != 0:
-                    return ret
-
-                refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
-                    self.repo_info.refspec_info
-                )
-
-                ret, _, _ = await self.unshallow_if_necessary(module_path)
-
-                if ret != 0:
-                    return ret
-
-                # TODO(franz): right now we fetch everything so when the repo is just cloned
-                # we fetch the base branch twice. Since we fetch with multi this is probably not
-                # a big issue but it could be better
-                # INFO(franz): I think this ok right now it's keep the code simple and the data
-                # flow is better this way and the performance gain is I think small
-                # One idea would be to use bare repo so that we fetch absolutely nothing on clone
-                for remote, refspec_list in refspec_by_remote.items():
-                    self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
-                    f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
-                    if f_ret != 0:
-                        logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
-                    self.progress.advance(self.task_id)
-
-                ret, _, _ = await self.setup_main_branch(module_path)
-                if ret != 0:
-                    return ret
-
-                # Merge everything into the main branch
-                for refspec_info in self.repo_info.refspec_info[1:]:
-                    ret, err = await self.merge_spec_into_tree(
-                        self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
+                if self.repo_info.refspec_info:
+                    self.progress.update(
+                        self.task_id,
+                        status=("Setting up repo ..."),
                     )
-                    if ret != 0:
-                        return -1
+                    ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
                     self.progress.advance(self.task_id)
 
-                # We sparse checkout after the merge because it's faster to do it
-                # in this order
-                await self.setup_sparse_checkout(symlink_modules, module_path)
+                    if ret != 0:
+                        return ret
+
+                    refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
+                        self.repo_info.refspec_info
+                    )
+
+                    ret, _, _ = await self.unshallow_if_necessary(module_path)
+
+                    if ret != 0:
+                        return ret
+
+                    # TODO(franz): right now we fetch everything so when the repo is just cloned
+                    # we fetch the base branch twice. Since we fetch with multi this is probably not
+                    # a big issue but it could be better
+                    # INFO(franz): I think this ok right now it's keep the code simple and the data
+                    # flow is better this way and the performance gain is I think small
+                    # One idea would be to use bare repo so that we fetch absolutely nothing on clone
+                    for remote, refspec_list in refspec_by_remote.items():
+                        self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
+                        f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
+                        if f_ret != 0:
+                            logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
+                        self.progress.advance(self.task_id)
+
+                    ret, _, _ = await self.setup_main_branch(module_path)
+                    if ret != 0:
+                        return ret
+
+                    # Merge everything into the main branch
+                    for refspec_info in self.repo_info.refspec_info[1:]:
+                        ret, err = await self.merge_spec_into_tree(
+                            self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
+                        )
+                    ret = await self.clone_or_reset_and_setup_repo(module_path, git_modules)
+                    self.progress.advance(self.task_id)
+
+                    if ret != 0:
+                        return ret
+
+                    refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
+                        self.repo_info.refspec_info
+                    )
+
+                    ret, _, _ = await self.setup_main_branch(module_path)
+                    if ret != 0:
+                        return ret
+
+                    ret, _, _ = await self.unshallow_if_necessary(module_path)
+
+                    if ret != 0:
+                        return ret
+
+                    # TODO(franz): right now we fetch everything so when the repo is just cloned
+                    # we fetch the base branch twice. Since we fetch with multi this is probably not
+                    # a big issue but it could be better
+                    # INFO(franz): I think this ok right now it's keep the code simple and the data
+                    # flow is better this way and the performance gain is I think small
+                    # One idea would be to use bare repo so that we fetch absolutely nothing on clone
+                    for remote, refspec_list in refspec_by_remote.items():
+                        self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
+                        f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
+                        if f_ret != 0:
+                            logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
+                        self.progress.advance(self.task_id)
+
+                    # Merge everything into the main branch
+                    for refspec_info in self.repo_info.refspec_info[1:]:
+                        ret, err = await self.merge_spec_into_tree(
+                            self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
+                        )
+                        if ret != 0:
+                            return -1
+                        self.progress.advance(self.task_id)
+
+                    # We sparse checkout after the merge because it's faster to do it
+                    # in this order
+                    await self.setup_sparse_checkout(git_modules, module_path)
 
                 ret = await self.run_shell_commands(self.repo_info, module_path)
                 if ret != 0:
@@ -573,7 +649,7 @@ class RepoProcessor:
 
                 self.progress.update(self.task_id, status="Linking directory")
                 if self.name != "odoo":
-                    ret, err = await self.link_all_modules(symlink_modules, module_path)
+                    ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
                     if ret != 0:
                         self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
                         return ret
