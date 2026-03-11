@@ -428,7 +428,7 @@ class RepoProcessor:
         base_path_links = self.workdir / "links"
         for module in spec.modules:
             path = base_path_links / module
-            if path.is_symlink() or path.is_mount() or not path.exists():
+            if path.is_symlink() or path.is_mount() or not path.exists() or (path.is_dir() and not any(path.iterdir())):
                 result.append(module)
             else:
                 console.print(

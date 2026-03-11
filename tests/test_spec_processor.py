@@ -13,7 +13,7 @@ from bl.spec_processor import (
     create_clone_args,
     normalize_merge_result,
 )
-from bl.types import CloneFlags, OriginType, ProjectSpec, RepoInfo, RefspecInfo
+from bl.types import CloneFlags, OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
 
 def _make_ref(remote: str, refspec: str, type_: OriginType = OriginType.BRANCH) -> RefspecInfo:
@@ -204,17 +204,22 @@ def test_filter_non_link_module(tmp_path: Path) -> None:
     # - "symlinked": target is symlink -> included
     # - "regular": target is regular dir -> excluded
     # - "missing": no target -> included
-    repo_info = _make_repo_info(modules=["symlinked", "regular", "missing"])
+    # - "empty": target is empty dir -> included
+    repo_info = _make_repo_info(modules=["symlinked", "regular", "missing", "empty"])
     rp = _make_repo_processor(tmp_path, repo_info)
 
     src_symlink_dir = tmp_path / "src_symlink"
     src_symlink_dir.mkdir()
     (links_dir / "symlinked").symlink_to(src_symlink_dir, target_is_directory=True)
 
-    (links_dir / "regular").mkdir()
+    (links_dir / "empty").mkdir()
+    regular = links_dir / "regular"
+    regular.mkdir()
+    # Add a file in regular
+    (regular / "file.txt").write_text("content")
 
     result = rp.filter_non_link_module(repo_info)
-    assert set(result) == {"symlinked", "missing"}
+    assert set(result) == {"symlinked", "missing", "empty"}
 
 
 @pytest.mark.asyncio
