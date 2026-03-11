@@ -22,6 +22,30 @@ logger = logging.getLogger(__name__)
 # the parent repo we could activate sparse checkout on a parent folder
 # should probably make a function that handles the error in a unified manner
 # and crash if the error is on a vital part of the process
+# TODO(franz): For the refactoring I think what we want to do is this
+# From the spec generate a list of action with the data for the action and a type of action
+# - Setup repo
+# - fetch remote with branches
+# - merge branches
+# - sparse checkout the repo
+# - link modules
+# The action should contain the task_id to update and the data necessary to perform the action
+# That way all we will be doing is process a list of action instead of doing weird stuff with all the modulespec
+# So first we need to clearly define for each step what type of work we want to do
+# Setup repo:
+# - Clone repo that are not present
+# - Setup repo that are present
+# - Delete repo that are present but not required anymore
+# Fetch remote with branches:
+# - For non shallow repo Fetch/Pull all the branches from the same at once
+# - For shallow repo pull shallowly the branch that needs to be pulled
+# Merges branches:
+# - For each repo merge all the branch that needs to be merged together
+# Sparse checkout:
+# - Cone Sparse checkout modules without locales
+# - Non cone sparse checkout modules with locales
+# Link modules:
+# - link all the modules according to how Paradoxxxzero wants it to be done
 
 
 def rich_warning(message, category, filename, lineno, file=None, line=None):
@@ -410,8 +434,7 @@ class RepoProcessor:
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
             "pull",
-            "-j",
-            str(self.concurrency),
+            "--rebase",
             remote,
         ]
 
