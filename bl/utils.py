@@ -1,12 +1,11 @@
 import asyncio
-import os
 import logging
+import os
+import warnings
 from pathlib import Path
 from typing import Optional
 
-import warnings
-from bl.types import RepoInfo, OriginType, RefspecInfo
-
+from bl.types import OriginType, RefspecInfo, RepoInfo
 
 english_env = os.environ.copy()
 # Ensure git outputs in English for consistent parsing
@@ -44,13 +43,10 @@ def get_local_ref(origin: RefspecInfo) -> str:
     return f"{origin.ref_name or origin.refspec}"
 
 
-async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
-    logger.debug(f"In {str(cwd)}: git {' '.join([str(a) for a in args])}")
-    """Executes a git command asynchronously."""
+async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
+    logger.debug(f"In {str(cwd)}: {' '.join([str(a) for a in args])}")
+    """Executes a command asynchronously."""
     proc = await asyncio.create_subprocess_exec(
-        "git",
-        "--git-dir",
-        ".git/",
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -61,3 +57,8 @@ async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str
     returncode = proc.returncode if proc.returncode is not None else -1
     logger.debug(f"{returncode} - {stdout.decode().strip()} - {stdout.decode().strip()}")
     return returncode, stdout.decode().strip(), stderr.decode().strip()
+
+
+async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
+    """Executes a git command asynchronously."""
+    return await run(*["git", "--git-dir", ".git/", *args], cwd=cwd)

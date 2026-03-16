@@ -11,7 +11,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn
 from rich.table import Column, Table
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
-from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run_git
+from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run, run_git
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -369,24 +369,23 @@ class RepoProcessor:
                 if dest_path.is_symlink():
                     await asyncio.to_thread(os.unlink, dest_path)
                 elif dest_path.is_mount():
-                    umount = await asyncio.create_subprocess_exec("umount", str(dest_path), env=english_env)
-                    ret = await umount.wait()
+                    ret, out, err = await run("umount", str(dest_path))
                     if ret != 0:
-                        return -1, f"Failed to unmount {dest_path}"
+                        return -1, f"Failed to unmount {dest_path} {out} {err}"
                 if dest_path.is_dir() and not dest_path.is_mount():
                     await asyncio.to_thread(dest_path.rmdir)
 
                 if self.use_bindfs:
                     # Create the destination directory if it doesn't exist, bindfs requires it to exist
                     await asyncio.to_thread(dest_path.mkdir, exist_ok=True)
-                    mount = await asyncio.create_subprocess_exec(
+                    ret, out, err = await run(
                         "bindfs",
                         str(src_path),
                         str(dest_path),
-                        env=english_env,
                     )
-                    if await mount.wait() != 0:
-                        return -1, f"Failed to bind mount {src_path} to {dest_path}"
+                    if ret != 0:
+                        logger.debug(f"Bindfs failed for {src_path} to {dest_path}: {out} {err}")
+                        # return ret, f"Failed to bind mount {src_path} to {dest_path} ({out} {err})"
 
                 else:
                     await asyncio.to_thread(os.symlink, src_path.relative_to(links_path, walk_up=True), dest_path, True)
