@@ -21,7 +21,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
           enable-cache: true
 
       - name: Install dependencies
@@ -54,7 +54,7 @@ jobs:
         run: uv pip install -e .
 
       - name: Install ak
-        run: uv pip install ak
+        run: uv pip install git+https://github.com/akretion/ak
 
       - name: Clean external-src folders
         run: |
@@ -62,7 +62,7 @@ jobs:
           rm -rf benchmark/ak_benchmark/external-src/
 
       - name: Run bl build
-        run: bl build -c abilis-spec.yaml -z abilis-frz.yml
+        run: bl build -c abilis-spec.yaml -z abilis-frz.yml --log-level=DEBUG -j 1
         working-directory: benchmark/bl_benchmark/
 
       - name: Run ak build and sparse

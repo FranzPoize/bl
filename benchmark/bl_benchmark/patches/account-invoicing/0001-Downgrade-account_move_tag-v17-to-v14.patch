@@ -1,0 +1,89 @@
+From ab01f7412b8561fd5cc11b001c94354d54cc941b Mon Sep 17 00:00:00 2001
+From: Matthieu Saison <matthieu.saison@akretion.com>
+Date: Mon, 26 Jan 2026 10:55:03 +0100
+Subject: [PATCH] Downgrade account_move_tag v17 to v14
+
+---
+ account_move_tag/__manifest__.py                   | 2 +-
+ account_move_tag/views/account_move_line_views.xml | 4 ++--
+ account_move_tag/views/account_move_views.xml      | 8 ++++----
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/account_move_tag/__manifest__.py b/account_move_tag/__manifest__.py
+index 68b6cd64..e3d78edd 100644
+--- a/account_move_tag/__manifest__.py
++++ b/account_move_tag/__manifest__.py
+@@ -7,7 +7,7 @@
+     "author": "Codeforward B.V., Odoo Community Association (OCA)",
+     "website": "https://github.com/OCA/account-invoicing",
+     "category": "Hidden",
+-    "version": "17.0.1.0.0",
++    "version": "14.0.1.0.0",
+     "depends": ["account"],
+     "license": "AGPL-3",
+     "data": [
+diff --git a/account_move_tag/views/account_move_line_views.xml b/account_move_tag/views/account_move_line_views.xml
+index 09ccea79..24a96fb2 100644
+--- a/account_move_tag/views/account_move_line_views.xml
++++ b/account_move_tag/views/account_move_line_views.xml
+@@ -4,7 +4,7 @@
+         <field name="model">account.move.line</field>
+         <field name="inherit_id" ref="account.view_account_move_line_filter" />
+         <field name="arch" type="xml">
+-            <field name="ref" position="before">
++            <field name="date" position="before">
+                 <field name="tag_ids" string="Tags" />
+             </field>
+         </field>
+@@ -15,7 +15,7 @@
+         <field name="model">account.move.line</field>
+         <field name="inherit_id" ref="account.view_move_line_tree" />
+         <field name="arch" type="xml">
+-            <field name="amount_residual" position="before">
++            <field name="matching_number" position="after">
+                 <field
+                     name="tag_ids"
+                     string="Tags"
+diff --git a/account_move_tag/views/account_move_views.xml b/account_move_tag/views/account_move_views.xml
+index 26b2b39c..23a2093a 100644
+--- a/account_move_tag/views/account_move_views.xml
++++ b/account_move_tag/views/account_move_views.xml
+@@ -4,7 +4,7 @@
+         <field name="model">account.move</field>
+         <field name="inherit_id" ref="account.view_move_form" />
+         <field name="arch" type="xml">
+-            <field name="tax_cash_basis_origin_move_id" position="before">
++            <field name="invoice_vendor_bill_id" position="before">
+                 <field
+                     name="tag_ids"
+                     string="Tags"
+@@ -20,7 +20,7 @@
+         <field name="model">account.move</field>
+         <field name="inherit_id" ref="account.view_account_move_filter" />
+         <field name="arch" type="xml">
+-            <field name="ref" position="before">
++            <field name="date" position="before">
+                 <field name="tag_ids" string="Tags" />
+             </field>
+         </field>
+@@ -31,7 +31,7 @@
+         <field name="model">account.move</field>
+         <field name="inherit_id" ref="account.view_invoice_tree" />
+         <field name="arch" type="xml">
+-            <field name="to_check" position="before">
++            <field name="payment_state" position="before">
+                 <field
+                     name="tag_ids"
+                     string="Tags"
+@@ -48,7 +48,7 @@
+         <field name="model">account.move</field>
+         <field name="inherit_id" ref="account.view_move_tree" />
+         <field name="arch" type="xml">
+-            <field name="to_check" position="before">
++            <field name="currency_id" position="after">
+                 <field
+                     name="tag_ids"
+                     string="Tags"
+-- 
+2.39.5 (Apple Git-154)
+
