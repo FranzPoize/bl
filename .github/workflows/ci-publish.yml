@@ -35,6 +35,43 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  benchmark:
+    name: Benchmark comparison bl vs ak
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install bl
+        run: uv pip install -e .
+
+      - name: Install ak
+        run: uv pip install ak
+
+      - name: Clean external-src folders
+        run: |
+          rm -rf benchmark/bl_benchmark/external-src/
+          rm -rf benchmark/ak_benchmark/external-src/
+
+      - name: Run bl build
+        run: bl build -c abilis-spec.yaml -z abilis-frz.yml
+        working-directory: benchmark/bl_benchmark/
+
+      - name: Run ak build and sparse
+        run: ak build -c abilis-spec.yaml -f abilis-frz.yml && ak sparse -c abilis-spec.yaml
+        working-directory: benchmark/ak_benchmark/
+
+      - name: Compare results
+        run: dev_tool/check_diff.sh benchmark/bl_benchmark/external-src benchmark/ak_benchmark/external-src
+
   publish:
     name: Build and publish to PyPI
     runs-on: ubuntu-latest

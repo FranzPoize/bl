@@ -1,0 +1,209 @@
+From b4cf3d89df9b2af9969c98ffae0ef48f3ff9cb25 Mon Sep 17 00:00:00 2001
+From: Mathieu <mathieu.delva@hotmail.com>
+Date: Thu, 18 Dec 2025 16:34:59 +0100
+Subject: [PATCH] [IMP] sale_pricelist_packaging: PATCH to work in V14
+
+---
+ sale_pricelist_packaging/__manifest__.py      |  4 +-
+ sale_pricelist_packaging/models/sale_order.py | 14 ++--
+ .../tests/test_pricelist.py                   | 72 +++++++++----------
+ .../views/product_pricelist.xml               | 32 +++++----
+ 4 files changed, 68 insertions(+), 54 deletions(-)
+
+diff --git a/sale_pricelist_packaging/__manifest__.py b/sale_pricelist_packaging/__manifest__.py
+index 2f27da24c..e848a8a4b 100644
+--- a/sale_pricelist_packaging/__manifest__.py
++++ b/sale_pricelist_packaging/__manifest__.py
+@@ -5,12 +5,12 @@
+ {
+     "name": "Sale Pricelist Packaging",
+     "summary": "Sale Pricelist Packaging",
+-    "version": "18.0.1.0.0",
++    "version": "14.0.1.0.0",
+     "category": "sale",
+     "website": "https://github.com/OCA/sale-workflow",
+     "author": " Akretion, Odoo Community Association (OCA)",
+     "maintainers": ["mathieudelva"],
+     "license": "AGPL-3",
+-    "depends": ["sale_management"],
++    "depends": ["sale_management", "sale_stock"],
+     "data": ["views/product_pricelist.xml"],
+ }
+diff --git a/sale_pricelist_packaging/models/sale_order.py b/sale_pricelist_packaging/models/sale_order.py
+index 233a3207f..45c84e881 100644
+--- a/sale_pricelist_packaging/models/sale_order.py
++++ b/sale_pricelist_packaging/models/sale_order.py
+@@ -6,8 +6,14 @@ from odoo import api, models
+ 
+ class SaleOrderLine(models.Model):
+     _inherit = "sale.order.line"
++    
++    @api.onchange("product_packaging")
++    def _onchange_product_packaging(self):
++        self.with_context(packaging=self.product_packaging).product_uom_change()
++        return super()._onchange_product_packaging()
+ 
+-    @api.depends("product_id", "product_uom", "product_uom_qty", "product_packaging_id")
+-    def _compute_pricelist_item_id(self):
+-        self = self.with_context(packaging=self.product_packaging_id)
+-        return super()._compute_pricelist_item_id()
++    def product_uom_change(self):
++        res = super().product_uom_change()
++        if self.product_packaging and "packaging" not in self.env.context:
++            self = self.with_context(packaging=self.product_packaging)
++        return res
+\ No newline at end of file
+diff --git a/sale_pricelist_packaging/tests/test_pricelist.py b/sale_pricelist_packaging/tests/test_pricelist.py
+index 8d0f94c42..1a846f299 100644
+--- a/sale_pricelist_packaging/tests/test_pricelist.py
++++ b/sale_pricelist_packaging/tests/test_pricelist.py
+@@ -3,42 +3,19 @@
+ # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
+ 
+ 
+-from odoo import Command
+-from odoo.tests import tagged
+-from odoo.tests.common import TransactionCase
++from odoo.tests.common import Form, SavepointCase
+ 
+-
+-@tagged("post_install", "-at_install")
+-class TestPricelist(TransactionCase):
++class TestPricelist(SavepointCase):
+     @classmethod
+     def setUpClass(cls):
+         super().setUpClass()
+-        cls.env["res.config.settings"].create(
+-            {
+-                "group_product_pricelist": True,
+-                "group_discount_per_so_line": True,
+-                "group_stock_packaging": True,
+-            }
+-        ).execute()  # execute() applique les changements.
+-
++        config = Form(cls.env["res.config.settings"])
++        config.group_product_pricelist = True
++        config.product_pricelist_setting = "basic"
++        config.group_stock_packaging = True
+         cls.partner = cls.env.ref("base.res_partner_12")
+         cls.product = cls.env.ref("product.product_product_5")
+-
+-        cls.order = cls.env["sale.order"].create(
+-            {
+-                "partner_id": cls.partner.id,
+-                "order_line": [
+-                    Command.create(
+-                        {
+-                            "product_id": cls.product.id,
+-                            "product_uom_qty": 20,
+-                        }
+-                    ),
+-                ],
+-            }
+-        )
+-
+-        cls.pricelist = cls.order.pricelist_id
++        cls.pricelist = cls.env.ref("product.list0")
+ 
+         cls.packaging1 = cls.env["product.packaging"].create(
+             {
+@@ -80,13 +57,36 @@ class TestPricelist(TransactionCase):
+         )
+ 
+     def test_packaging_1(self):
+-        self.order.order_line.product_packaging_id = self.packaging1
+-        self.assertEqual(self.order.order_line.price_unit, 100)
++        sale_form = Form(self.env["sale.order"])
++        sale_form.partner_id = self.partner
++        sale_form.pricelist_id = self.pricelist
++        with sale_form.order_line.new() as line_form:
++            line_form.product_id = self.product
++            line_form.product_uom_qty = 20
++            line_form.product_packaging = self.packaging1
++        sale = sale_form.save()
++
++        self.assertEqual(sale.order_line.price_unit, 100)
+ 
+     def test_packaging_2(self):
+-        self.order.order_line.product_packaging_id = self.packaging2
+-        self.assertEqual(self.order.order_line.price_unit, 200)
++        sale_form = Form(self.env["sale.order"])
++        sale_form.partner_id = self.partner
++        sale_form.pricelist_id = self.pricelist
++        with sale_form.order_line.new() as line_form:
++            line_form.product_id = self.product
++            line_form.product_uom_qty = 20
++            line_form.product_packaging = self.packaging2
++        sale = sale_form.save()
++
++        self.assertEqual(sale.order_line.price_unit, 200)
+ 
+     def test_without_packaging(self):
+-        self.order.order_line.product_packaging_id = False
+-        self.assertEqual(self.order.order_line.price_unit, 10)
++        sale_form = Form(self.env["sale.order"])
++        sale_form.partner_id = self.partner
++        sale_form.pricelist_id = self.pricelist
++        with sale_form.order_line.new() as line_form:
++            line_form.product_id = self.product
++            line_form.product_uom_qty = 20
++
++        sale = sale_form.save()
++        self.assertEqual(sale.order_line.price_unit, 10)
+\ No newline at end of file
+diff --git a/sale_pricelist_packaging/views/product_pricelist.xml b/sale_pricelist_packaging/views/product_pricelist.xml
+index 05d0d83c4..8cef8b22b 100644
+--- a/sale_pricelist_packaging/views/product_pricelist.xml
++++ b/sale_pricelist_packaging/views/product_pricelist.xml
+@@ -1,13 +1,20 @@
+ <?xml version="1.0" encoding="UTF-8" ?>
+ <odoo>
++
+     <record id="product_pricelist_view" model="ir.ui.view">
+-        <field name="name">product.pricelist.form</field>
++        <field name="name">product.pricelist.tree</field>
+         <field name="model">product.pricelist</field>
+         <field name="inherit_id" ref="product.product_pricelist_view" />
+         <field name="arch" type="xml">
+-            <field name="price" position="after">
+-                <field name="packaging_id" />
+-            </field>
++            <xpath
++                expr="//field[@name='item_ids']/tree//field[@name='applied_on']"
++                position="after"
++            >
++                <field
++                    name="packaging_id"
++                    attrs="{'invisible': [('applied_on', '!=', '0_product_variant')]}"
++                />
++            </xpath>
+         </field>
+     </record>
+ 
+@@ -16,13 +23,14 @@
+         <field name="model">product.pricelist.item</field>
+         <field name="inherit_id" ref="product.product_pricelist_item_form_view" />
+         <field name="arch" type="xml">
+-            <field name="product_id" position="after">
+-                <field
+-                    name="packaging_id"
+-                    domain="[('product_id', '=', product_id)]"
+-                    invisible="not product_id"
+-                />
+-            </field>
++            <group name="pricelist_rule_related" position="after">
++                <group>
++                    <field
++                        name="packaging_id"
++                        domain="[('product_id', '=', product_id)]"
++                    />
++                </group>
++            </group>
+         </field>
+     </record>
+-</odoo>
++</odoo>
+\ No newline at end of file
+-- 
+2.34.1
+
