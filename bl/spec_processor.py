@@ -46,6 +46,10 @@ logger = logging.getLogger(__name__)
 # - Non cone sparse checkout modules with locales
 # Link modules:
 # - link all the modules according to how Paradoxxxzero wants it to be done
+# TODO(franz): For the error management
+# - For each git command think hard and long about if the error is critical or not
+# - Put a comment about what are the consequences of the error
+# - handle the error
 
 
 def rich_warning(message, category, filename, lineno, file=None, line=None):
@@ -152,24 +156,12 @@ class RepoProcessor:
         self.concurrency = concurrency
         self.use_bindfs = use_bindfs
 
-    async def clone_or_reset_and_setup_repo(self, module_path: Path, symlink_modules: List[str]):
-        clone_info = clone_info_from_repo(self.name, self.repo_info)
-        if check_path_is_repo(module_path):
-            ret = await self.setup_new_repo(clone_info, module_path)
-        else:
-            ret = await self.reset_repo_for_work(module_path)
-
-        if ret != 0:
-            return -1
-
-        ret, _, _ = await self.check_main_remote(module_path)
-
+    async def setup_remote_branches(self, module_path) -> tuple[int, str]:
         for remote, remote_url in self.repo_info.remotes.items():
-            await run_git("remote", "add", remote, remote_url, cwd=module_path)
+            ret, out, err = await run_git("remote", "add", remote, remote_url, cwd=module_path)
             await run_git("config", f"remote.{remote}.partialCloneFilter", "tree:0", cwd=module_path)
             await run_git("config", f"remote.{remote}.promisor", "true", cwd=module_path)
-
-        return 0
+        return 0, ""
 
     async def run_shell_commands(self, repo_info: RepoInfo, module_path: Path) -> int:
         for cmd in repo_info.shell_commands:
@@ -182,10 +174,6 @@ class RepoProcessor:
                 cmd_args = cmd.split(" ")
                 glob = cmd_args[-1]
                 ret, err = await self.check_and_apply_patch(glob, module_path)
-                self.progress.update(
-                    self.task_id,
-                    status=f"[red]Applying patch {glob}: {err}",
-                )
                 return ret
 
             self.progress.update(self.task_id, status=f"Running shell command: {cmd}...")
@@ -211,7 +199,7 @@ class RepoProcessor:
         self,
         clone_info: CloneInfo,
         module_path: Path,
-    ) -> int:
+    ) -> tuple[int, str]:
         root_refspec_info = clone_info.root_refspec_info
         remote = root_refspec_info.remote
         root_refspec = root_refspec_info.refspec
@@ -229,63 +217,51 @@ class RepoProcessor:
                 f"[red]Clone failed {root_refspec_info.remote}({clone_info.url})/{root_refspec_info.refspec}"
                 + f" -> {module_path}:\n{err}"
             )
-            self.progress.update(self.task_id, status=status_message)
-            return ret
+            return ret, status_message
 
         local_ref = get_local_ref(root_refspec_info)
         ret, out, err = await run_git("checkout", "-b", local_ref, cwd=module_path)
 
-        return 0
+        return 0, ""
 
     async def reset_repo_for_work(self, module_path: Path) -> int:
         ret, out, err = await run_git("status", "--porcelain", cwd=module_path)
 
         if out != "":
-            self.progress.update(self.task_id, status=f"[red]Repo is dirty:\n{format_diff(out)}")
-            return -1
+            return -1, f"Repo is dirty:\n{format_diff(out)}"
         if ret != 0:
-            self.progress.update(self.task_id, status="[red]Repo does not exist")
-            return ret
-        # Reset all the local origin to their remote origins
-        repo_info = self.repo_info
-        root_refspec_info = repo_info.refspec_info[0]
+            return ret, "[red]Repo does not exist"
+        return 0, ""
 
-        self.progress.update(
-            self.task_id,
-            status=f"Resetting existing repository for {root_refspec_info.remote}/{root_refspec_info.refspec}",
-        )
-        return 0
-
-    async def check_main_remote(self, module_path: Path) -> tuple[int, str, str]:
+    async def check_main_remote(self, module_path: Path) -> tuple[int, str]:
         if len(self.repo_info.remotes) != 1:
-            return 0, "", ""
+            return 0, ""
 
         remote_name, remote_url = next(iter(self.repo_info.remotes.items()))
 
         ret, out, err = await run_git("remote", "get-url", remote_name, cwd=module_path)
         if ret != 0:
-            return ret, out, err
+            return ret, err
 
         current_url = out.strip()
         if current_url != remote_url:
             await run_git("remote", "remove", remote_name, cwd=module_path)
             ret, out, err = await run_git("remote", "add", remote_name, remote_url, cwd=module_path)
             if ret != 0:
-                return ret, out, err
+                return ret, err
             await run_git("config", f"remote.{remote_name}.partialCloneFilter", "tree:0", cwd=module_path)
             await run_git("config", f"remote.{remote_name}.promisor", "true", cwd=module_path)
 
-        return 0, "", ""
+        return 0, ""
 
     async def unshallow_if_necessary(self, module_path: Path):
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
-        if len(self.repo_info.refspec_info) > 1 and s_out == "true":
-            ret, out, err = await run_git("fetch", "--unshallow", cwd=module_path)
-
-            if ret != 0:
-                self.progress.update(self.task_id, status=f"Unshallow unsucessful for {self.name}")
-            return ret, out, err
-        return 0, "", ""
+        is_shallow = s_out == "true"
+        need_unshallow = len(self.repo_info.refspec_info) > 1
+        if is_shallow and need_unshallow:
+            ret, out, err = await run_git("pull", "--rebase", "--unshallow", cwd=module_path)
+            return ret, err
+        return 0, ""
 
     async def checkout_or_create_base_branch(
         self, base_refspec: RefspecInfo, module_path: Path
@@ -342,7 +318,7 @@ class RepoProcessor:
         if should_have_merged_branch:
             ret, out, err = await run_git("switch", "-C", "merged", cwd=module_path)
 
-        return 0, "", ""
+        return 0, ""
 
     def local_path(self, module_name: str, local_paths: Dict[str, List[str]]) -> Path | None:
         for local_path, modules in local_paths.items():
@@ -420,10 +396,10 @@ class RepoProcessor:
 
         return 0, ""
 
-    def get_refspec_by_remote(self, refspec_info_list: List[RefspecInfo]) -> Dict[str, List[RefspecInfo]]:
+    def get_refspec_by_remote(self) -> Dict[str, List[RefspecInfo]]:
         result = {}
 
-        for spec in refspec_info_list:
+        for spec in self.repo_info.refspec_info:
             spec_list = result.get(spec.remote, [])
             spec_list.append(spec)
             result[spec.remote] = spec_list
@@ -432,8 +408,9 @@ class RepoProcessor:
 
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
-            "pull",
-            "--rebase",
+            "fetch",
+            "-a",
+            "--porcelain",
             remote,
         ]
 
@@ -443,9 +420,34 @@ class RepoProcessor:
 
         ret, out, err = await run_git(*args, cwd=module_path)
 
+        if out != "":
+            lines = out.split("\n")
+            for line in lines:
+                content = line.split(" ")
+                if len(content) == 5:
+                    _, _, base, target, ref = tuple(line.split(" "))
+                elif len(content) == 4:
+                    _, base, target, ref = tuple(line.split(" "))
+
+                if len(content) > 1:
+                    ref = "/".join(ref.split("/")[2:])
+                    console.print(
+                        f"[deep_sky_blue3]{self.name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1] to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]"
+                    )
+                    ret, out, err = await run_git(
+                        "log", "--pretty", "--format=%h|(%an)| %s", f"{base}..{target}", cwd=module_path
+                    )
+                    log_lines = out.split("\n")[:-1]
+
+                    for log in log_lines:
+                        hash, author, message = tuple(log.split("|"))
+                        console.print(
+                            f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}"
+                        )
+
         return ret, out, err
 
-    def filter_non_link_module(self, spec: RepoInfo):
+    def filter_non_link_module(self, spec: RepoInfo) -> list[Path]:
         result = []
         base_path_links = self.workdir / "links"
         for module in spec.modules:
@@ -459,7 +461,7 @@ class RepoProcessor:
                 )
         return result
 
-    def filter_local_module(self, module_list: List[str], local_paths: Dict[str, List[str]]):
+    def filter_local_module(self, module_list: List[str], local_paths: Dict[str, List[str]]) -> list[str]:
         if not local_paths:
             return module_list
 
@@ -532,6 +534,9 @@ class RepoProcessor:
 
     async def check_and_apply_patch(self, glob: str, module_path: Path) -> tuple[int, str]:
         patch_files = [p.relative_to(module_path) for p in list(module_path.glob(glob))]
+        if len(patch_files) == 0:
+            self.progress.update(self.task_id, status=f"[red]Patches do not exists:[/red] {glob}")
+            return -1, ""
         c_ret, c_out, c_err = await run_git("apply", "--reverse", "--check", *patch_files, cwd=module_path)
         if c_ret == 0:
             # Patch is already applied we don't need to do it again
@@ -542,7 +547,134 @@ class RepoProcessor:
             return -1, err
         return 0, ""
 
-    async def process_repo(self) -> int:
+    async def process_repo(
+        self,
+        module_path: Path,
+        symlink_modules: list[Path],
+        git_modules: list[str],
+    ) -> int:
+        count_step = self.count_step()
+        self.task_id = self.progress.add_task(
+            f"[cyan]{self.name}",
+            status="Waiting...",
+            total=count_step,
+        )
+        if not self.repo_info.refspec_info and not self.repo_info.paths:
+            self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
+            return -1
+
+        # First thing we need to do is setup the repos
+        # - If the repo does not exist we need to clone it
+        # - then we add all the remote
+        #   - We should check if the remote are properly created
+        #     remote can already created I don't thinkk git notifies
+        #     us if the remote is not reachable
+        if self.repo_info.refspec_info:
+            self.progress.update(
+                self.task_id,
+                status=("Setting up repo ..."),
+            )
+            repo_need_cloning = check_path_is_repo(module_path)
+            # ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
+            if repo_need_cloning:
+                clone_info = clone_info_from_repo(self.name, self.repo_info)
+                ret, err = await self.setup_new_repo(clone_info, module_path)
+            else:
+                ret, err = await self.reset_repo_for_work(module_path)
+
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
+                return -1
+
+            ret, err = await self.check_main_remote(module_path)
+
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Check main remote: {err}[/red]")
+                return -1
+
+            ret, err = await self.setup_remote_branches(module_path)
+
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Setup remote branch: {err}[/red]")
+                return -1
+
+            self.progress.advance(self.task_id)
+
+            ret, err = await self.unshallow_if_necessary(module_path)
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
+                return -1
+
+            if len(self.repo_info.refspec_info) > 1:
+                refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote()
+
+                # TODO(franz): right now we fetch everything so when the repo is just cloned
+                # we fetch the base branch twice. Since we fetch with multi this is probably not
+                # a big issue but it could be better
+                # INFO(franz): I think this ok right now it's keep the code simple and the data
+                # flow is better this way and the performance gain is I think small
+                # One idea would be to use bare repo so that we fetch absolutely nothing on clone
+                ret, out, err = await run_git("rev-parse", "--verify", "temp", cwd=module_path)
+                has_temp_branch = ret == 0
+
+                if has_temp_branch:
+                    await run_git("branch", "-D", "temp", cwd=module_path)
+                ret, out, err = await run_git("switch", "-C", "temp", cwd=module_path)
+
+                for remote, refspec_list in refspec_by_remote.items():
+                    self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
+                    ret, out, err = await self.fetch_multi(remote, refspec_list, module_path)
+            else:
+                self.progress.update(self.task_id, status=f"Pulling shallow ")
+                # We need to pull the main branch shallow
+                ret, out, err = await run_git("pull", "--rebase", "--depth", "1", cwd=module_path)
+
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
+                return -1
+
+            self.progress.advance(self.task_id)
+            ret, err = await self.setup_merged_branch(module_path)
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Merged branch error: {err}[/red]")
+                return ret
+
+            # Merge everything into the main branch
+            for refspec_info in self.repo_info.refspec_info[1:]:
+                ret, err = await self.merge_spec_into_tree(
+                    self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
+                )
+                self.progress.advance(self.task_id)
+
+            await run_git("branch", "-D", "temp", cwd=module_path)
+
+            # We sparse checkout after the merge because it's faster to do it
+            # in this order
+            await self.setup_sparse_checkout(git_modules, module_path)
+
+        ret = await self.run_shell_commands(self.repo_info, module_path)
+        if ret != 0:
+            return ret
+        self.progress.advance(self.task_id)
+
+        for glob in self.repo_info.patch_globs_to_apply:
+            ret, err = await self.check_and_apply_patch(glob, module_path)
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
+                return ret
+            self.progress.advance(self.task_id)
+
+        self.progress.update(self.task_id, status="Linking directory")
+        if self.name != "odoo":
+            ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
+            if ret != 0:
+                self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
+                return ret
+
+        self.count_progress.advance(self.count_task)
+        self.progress.remove_task(self.task_id)
+
+    async def queue_repo_task(self) -> int:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
@@ -554,96 +686,8 @@ class RepoProcessor:
             # a list of remotes
             # a list of modules
             try:
-                count_step = self.count_step()
-                self.task_id = self.progress.add_task(
-                    f"[cyan]{self.name}",
-                    status="Waiting...",
-                    total=count_step,
-                )
-                if not self.repo_info.refspec_info and not self.repo_info.paths:
-                    self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
-                    return -1
-
-                # First thing we need to do is setup the repos
-                # - If the repo does not exist we need to clone it
-                # - then we add all the remote
-                #   - We should check if the remote are properly created
-                #     remote can already created I don't thinkk git notifies
-                #     us if the remote is not reachable
-                if self.repo_info.refspec_info:
-                    self.progress.update(
-                        self.task_id,
-                        status=("Setting up repo ..."),
-                    )
-                    ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
-                    self.progress.advance(self.task_id)
-
-                    if ret != 0:
-                        return ret
-
-                    refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote(
-                        self.repo_info.refspec_info
-                    )
-
-                    ret, _, _ = await self.unshallow_if_necessary(module_path)
-                    if ret != 0:
-                        return ret
-
-                    # TODO(franz): right now we fetch everything so when the repo is just cloned
-                    # we fetch the base branch twice. Since we fetch with multi this is probably not
-                    # a big issue but it could be better
-                    # INFO(franz): I think this ok right now it's keep the code simple and the data
-                    # flow is better this way and the performance gain is I think small
-                    # One idea would be to use bare repo so that we fetch absolutely nothing on clone
-                    for remote, refspec_list in refspec_by_remote.items():
-                        self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
-                        f_ret, f_out, f_err = await self.fetch_multi(remote, refspec_list, module_path)
-                        if f_ret != 0:
-                            logger.debug(f"Error fetching {self.name} - {remote}: {f_err}")
-                        self.progress.advance(self.task_id)
-
-                    # ret, _, _ = await self.setup_main_branch(module_path)
-                    # if ret != 0:
-                    #     return ret
-                    #
-                    ret, _, _ = await self.setup_merged_branch(module_path)
-                    if ret != 0:
-                        return ret
-
-                    # Merge everything into the main branch
-                    for refspec_info in self.repo_info.refspec_info[1:]:
-                        ret, err = await self.merge_spec_into_tree(
-                            self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
-                        )
-                    ret = await self.clone_or_reset_and_setup_repo(module_path, git_modules)
-                    self.progress.advance(self.task_id)
-
-                    # We sparse checkout after the merge because it's faster to do it
-                    # in this order
-                    await self.setup_sparse_checkout(git_modules, module_path)
-
-                ret = await self.run_shell_commands(self.repo_info, module_path)
-                if ret != 0:
-                    return ret
-                self.progress.advance(self.task_id)
-
-                for glob in self.repo_info.patch_globs_to_apply:
-                    self.progress.update(self.task_id, status=f"Applying patches: {glob}...")
-                    ret, err = await self.check_and_apply_patch(glob, module_path)
-                    if ret != 0:
-                        self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
-                        return ret
-                    self.progress.advance(self.task_id)
-
-                self.progress.update(self.task_id, status="Linking directory")
-                if self.name != "odoo":
-                    ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
-                    if ret != 0:
-                        self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
-                        return ret
-
-                self.count_progress.advance(self.count_task)
-                self.progress.remove_task(self.task_id)
+                ret = await self.process_repo(module_path, symlink_modules, git_modules)
+                return ret
 
             except Exception as e:
                 self.progress.update(self.task_id, status=f"[red]Error: {str(e)}")
@@ -695,7 +739,7 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
                 concurrency,
                 use_bindfs,
             )
-            tasks.append(repo_processor.process_repo())
+            tasks.append(repo_processor.queue_repo_task())
 
         # this should error if a task crashes
         return_codes = await asyncio.gather(*tasks)

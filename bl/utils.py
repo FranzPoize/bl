@@ -55,8 +55,9 @@ async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
     )
     stdout, stderr = await proc.communicate()
     returncode = proc.returncode if proc.returncode is not None else -1
+    logger.debug(f"In {str(cwd)}: git {' '.join([str(a) for a in args])}")
     logger.debug(f"{returncode} - {stdout.decode().strip()} - {stdout.decode().strip()}")
-    return returncode, stdout.decode().strip(), stderr.decode().strip()
+    return returncode, stdout.decode(), stderr.decode()
 
 
 async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
