@@ -44,7 +44,6 @@ def get_local_ref(origin: RefspecInfo) -> str:
 
 
 async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
-    logger.debug(f"In {str(cwd)}: {' '.join([str(a) for a in args])}")
     """Executes a command asynchronously."""
     proc = await asyncio.create_subprocess_exec(
         *args,
@@ -55,7 +54,7 @@ async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
     )
     stdout, stderr = await proc.communicate()
     returncode = proc.returncode if proc.returncode is not None else -1
-    logger.debug(f"In {str(cwd)}: git {' '.join([str(a) for a in args])}")
+    logger.debug(f"In {str(cwd)}: {' '.join([str(a) for a in args])}")
     logger.debug(f"{returncode} - {stdout.decode().strip()} - {stdout.decode().strip()}")
     return returncode, stdout.decode(), stderr.decode()
 

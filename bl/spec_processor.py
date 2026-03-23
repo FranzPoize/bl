@@ -605,8 +605,13 @@ class RepoProcessor:
                 self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
                 return -1
 
+            # HACK(franz): This is weird but it works
+            ret, out, err = await run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=module_path)
+            current_branch = out.strip()
             ret, out, err = await run_git("rev-parse", "--verify", "temp", cwd=module_path)
             has_temp_branch = ret == 0
+
+            # TODO(franz): before pulling we need to revert the patch if there is some
 
             if has_temp_branch:
                 await run_git("branch", "-D", "temp", cwd=module_path)
@@ -631,6 +636,10 @@ class RepoProcessor:
                     cwd=module_path,
                 )
 
+            # HACK(franz): This is weird but it works
+            await run_git("checkout", current_branch, cwd=module_path)
+            await run_git("branch", "-D", "temp", cwd=module_path)
+
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
                 return -1
@@ -647,8 +656,6 @@ class RepoProcessor:
                     self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
                 )
                 self.progress.advance(self.task_id)
-
-            await run_git("branch", "-D", "temp", cwd=module_path)
 
             # We sparse checkout after the merge because it's faster to do it
             # in this order
