@@ -27,6 +27,7 @@ def _make_repo_info(
     shell_commands: List[str] | None = None,
     patch_globs_to_apply: List[str] | None = None,
     locales: List[str] | None = None,
+    paths: dict[str, List[str]] | None = None,
 ) -> RepoInfo:
     return RepoInfo(
         modules=modules or [],
@@ -36,6 +37,7 @@ def _make_repo_info(
         patch_globs_to_apply=patch_globs_to_apply or [],
         target_folder=None,
         locales=locales or [],
+        paths=paths or {},
     )
 
 
@@ -385,3 +387,103 @@ async def test_process_project_minimal_integration(tmp_path: Path) -> None:
         assert module_repo.is_dir()
         current_head = _run_git(module_repo, "rev-parse", "HEAD")
         assert current_head == head_sha
+
+
+class TestLocalPath:
+    def test_local_path_module_in_list(self, tmp_path: Path) -> None:
+        local_paths = {"/custom/modules": ["mod1", "mod2"]}
+        repo_info = _make_repo_info(modules=["mod1", "mod2"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.local_path("mod1", local_paths)
+        assert result is not None
+        assert result == (tmp_path / "/custom/modules" / "mod1").resolve()
+
+    def test_local_path_empty_catch_all(self, tmp_path: Path) -> None:
+        local_paths = {"/custom/modules": []}
+        repo_info = _make_repo_info(modules=["mod1"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.local_path("any_module", local_paths)
+        assert result is not None
+        assert result == (tmp_path / "/custom/modules" / "any_module").resolve()
+
+    def test_local_path_module_substitution(self, tmp_path: Path) -> None:
+        local_paths = {"$MODULE/local": ["mod1"]}
+        repo_info = _make_repo_info(modules=["mod1"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.local_path("mod1", local_paths)
+        assert result is not None
+        assert result == (tmp_path / "mod1/local" / "mod1").resolve()
+
+    def test_local_path_returns_none_when_not_found(self, tmp_path: Path) -> None:
+        local_paths = {"/custom/modules": ["mod1", "mod2"]}
+        repo_info = _make_repo_info(modules=["mod1", "mod2"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.local_path("mod3", local_paths)
+        assert result is None
+
+
+class TestFilterLocalModule:
+    def test_filter_local_module_excludes_existing(self, tmp_path: Path) -> None:
+        local_paths = {"custom_modules": ["local_mod"]}
+        (tmp_path / "custom_modules" / "local_mod").mkdir(parents=True)
+        (tmp_path / "custom_modules" / "local_mod" / "file.py").write_text("# local module")
+
+        repo_info = _make_repo_info(modules=["local_mod", "remote_mod"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.filter_local_module(["local_mod", "remote_mod"], local_paths)
+        assert "local_mod" not in result
+        assert "remote_mod" in result
+
+    def test_filter_local_module_includes_missing_with_warning(self, tmp_path: Path) -> None:
+        local_paths = {"/custom_modules": ["missing_mod"]}
+        repo_info = _make_repo_info(modules=["missing_mod"], paths=local_paths)
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.filter_local_module(["missing_mod"], local_paths)
+        assert "missing_mod" in result
+
+    def test_filter_local_module_no_local_paths(self, tmp_path: Path) -> None:
+        repo_info = _make_repo_info(modules=["mod1", "mod2"])
+        rp = _make_repo_processor(tmp_path, repo_info)
+
+        result = rp.filter_local_module(["mod1", "mod2"], {})
+        assert result == ["mod1", "mod2"]
+
+
+@pytest.mark.asyncio
+async def test_link_all_modules_with_local_paths(monkeypatch, tmp_path: Path) -> None:
+    local_modules_path = tmp_path / "local_modules"
+    local_modules_path.mkdir()
+    (local_modules_path / "local_mod").mkdir()
+    (local_modules_path / "local_mod" / "file.py").write_text("# local")
+
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / "remote_mod").mkdir()
+    (repo_path / "remote_mod" / "file.py").write_text("# remote")
+
+    local_paths = {"local_modules": ["local_mod"]}
+    repo_info = _make_repo_info(
+        modules=["local_mod", "remote_mod"],
+        paths=local_paths,
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.task_id = 0
+
+    async def fake_run(*args, **kwargs):
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.spec_processor.run", fake_run)
+
+    ret, err = await rp.link_all_modules(["local_mod", "remote_mod"], repo_path, local_paths)
+    assert ret == 0
+
+    links_dir = tmp_path / "links"
+    assert (links_dir / "local_mod").is_symlink()
+    assert (links_dir / "remote_mod").is_symlink()
+    assert (links_dir / "local_mod").resolve() == local_modules_path / "local_mod"
