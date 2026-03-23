@@ -33,6 +33,7 @@ def _init_test_repo(base_dir: Path) -> tuple[Path, str, str]:
     _run_git(repo, "init", "-b", "main")
     _run_git(repo, "config", "user.name", "Test User")
     _run_git(repo, "config", "user.email", "test@example.com")
+    _run_git(repo, "config", "uploadpack.allowFilter", "true")
 
     # First commit
     (repo / "file.txt").write_text("first\n")

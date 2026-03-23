@@ -8,7 +8,7 @@ import pytest
 
 from bl.spec_processor import (
     RepoProcessor,
-    check_path_is_repo,
+    path_is_not_repo,
     clone_info_from_repo,
     create_clone_args,
     normalize_merge_result,
@@ -73,17 +73,17 @@ def _make_repo_processor(tmp_path: Path, repo_info: RepoInfo) -> RepoProcessor:
 def test_check_path_is_repo(tmp_path: Path) -> None:
     # Non-existing path -> considered not a repo (returns True)
     missing = tmp_path / "missing"
-    assert check_path_is_repo(missing) is True
+    assert path_is_not_repo(missing) is True
 
     # Existing file -> not a directory -> considered not a repo
     file_path = tmp_path / "file.txt"
     file_path.write_text("content")
-    assert check_path_is_repo(file_path) is True
+    assert path_is_not_repo(file_path) is True
 
     # Existing directory -> currently treated as an existing repo (returns False)
     dir_path = tmp_path / "dir"
     dir_path.mkdir()
-    assert check_path_is_repo(dir_path) is False
+    assert path_is_not_repo(dir_path) is False
 
 
 def test_clone_info_from_repo_flags_variants() -> None:
@@ -170,6 +170,7 @@ def test_repo_processor_count_step_and_grouping(tmp_path: Path) -> None:
     refspecs = [
         _make_ref("origin", "main"),
         _make_ref("origin", "feature"),
+        _make_ref("other", "dev"),
     ]
     remotes = {"origin": "https://example.com/repo.git", "other": "https://example.com/other.git"}
     shell_cmds = ["echo test", "git status"]
@@ -190,7 +191,7 @@ def test_repo_processor_count_step_and_grouping(tmp_path: Path) -> None:
     expected = 1 + len(remotes) + (len(refspecs) - 1) + len(shell_cmds) + len(patches) + 1
     assert rp.count_step() == expected
 
-    grouped = rp.get_refspec_by_remote(refspecs + [_make_ref("other", "dev")])
+    grouped = rp.get_refspec_by_remote()
     assert set(grouped.keys()) == {"origin", "other"}
     assert [r.refspec for r in grouped["origin"]] == ["main", "feature"]
     assert [r.refspec for r in grouped["other"]] == ["dev"]
@@ -252,7 +253,7 @@ async def test_fetch_multi_builds_correct_args(monkeypatch, tmp_path: Path) -> N
 
     assert len(calls) == 1
     args, cwd = calls[0]
-    assert args[0] == "pull"
+    assert args[0] == "fetch"
     assert "origin" in args
     assert "main:local/main" in args
     assert "feature:local/feature" in args

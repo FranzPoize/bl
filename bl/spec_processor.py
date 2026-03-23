@@ -16,13 +16,6 @@ from bl.utils import english_env, format_diff, get_local_ref, get_module_path, r
 console = Console()
 logger = logging.getLogger(__name__)
 
-# TODO(franz): it's a bit better now but better keep an eye on it
-# TODO(franz): Error handling should be watch carefully because if
-# we don't exit on some error code due to the fact that git resolve to
-# the parent repo we could activate sparse checkout on a parent folder
-# should probably make a function that handles the error in a unified manner
-# and crash if the error is on a vital part of the process
-# TODO(franz): For the refactoring I think what we want to do is this
 # From the spec generate a list of action with the data for the action and a type of action
 # - Setup repo
 # - fetch remote with branches
@@ -46,6 +39,12 @@ logger = logging.getLogger(__name__)
 # - Non cone sparse checkout modules with locales
 # Link modules:
 # - link all the modules according to how Paradoxxxzero wants it to be done
+
+# TODO(franz): Error handling should be watch carefully because if
+# we don't exit on some error code due to the fact that git resolve to
+# the parent repo we could activate sparse checkout on a parent folder
+# should probably make a function that handles the error in a unified manner
+# and crash if the error is on a vital part of the process
 # TODO(franz): For the error management
 # - For each git command think hard and long about if the error is critical or not
 # - Put a comment about what are the consequences of the error
@@ -60,7 +59,7 @@ warnings.showwarning = rich_warning
 warnings.simplefilter("default", DeprecationWarning)
 
 
-def check_path_is_repo(module_path: Path):
+def path_is_not_repo(module_path: Path):
     # TODO(franz): add check for .git folder
     return not module_path.exists() or not module_path.is_dir()
 
@@ -420,6 +419,7 @@ class RepoProcessor:
 
         ret, out, err = await run_git(*args, cwd=module_path)
 
+        # TODO(franz): please clean this up
         if out != "":
             lines = out.split("\n")
             for line in lines:
@@ -429,7 +429,7 @@ class RepoProcessor:
                 elif len(content) == 4:
                     _, base, target, ref = tuple(line.split(" "))
 
-                if len(content) > 1:
+                if len(content) > 1 and base[:3] != "000":
                     ref = "/".join(ref.split("/")[2:])
                     console.print(
                         f"[deep_sky_blue3]{self.name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1] to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]"
@@ -574,7 +574,7 @@ class RepoProcessor:
                 self.task_id,
                 status=("Setting up repo ..."),
             )
-            repo_need_cloning = check_path_is_repo(module_path)
+            repo_need_cloning = path_is_not_repo(module_path)
             # ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
             if repo_need_cloning:
                 clone_info = clone_info_from_repo(self.name, self.repo_info)
@@ -605,21 +605,15 @@ class RepoProcessor:
                 self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
                 return -1
 
+            ret, out, err = await run_git("rev-parse", "--verify", "temp", cwd=module_path)
+            has_temp_branch = ret == 0
+
+            if has_temp_branch:
+                await run_git("branch", "-D", "temp", cwd=module_path)
+            ret, out, err = await run_git("switch", "-C", "temp", cwd=module_path)
+
             if len(self.repo_info.refspec_info) > 1:
                 refspec_by_remote: Dict[str, List[RefspecInfo]] = self.get_refspec_by_remote()
-
-                # TODO(franz): right now we fetch everything so when the repo is just cloned
-                # we fetch the base branch twice. Since we fetch with multi this is probably not
-                # a big issue but it could be better
-                # INFO(franz): I think this ok right now it's keep the code simple and the data
-                # flow is better this way and the performance gain is I think small
-                # One idea would be to use bare repo so that we fetch absolutely nothing on clone
-                ret, out, err = await run_git("rev-parse", "--verify", "temp", cwd=module_path)
-                has_temp_branch = ret == 0
-
-                if has_temp_branch:
-                    await run_git("branch", "-D", "temp", cwd=module_path)
-                ret, out, err = await run_git("switch", "-C", "temp", cwd=module_path)
 
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
@@ -627,7 +621,15 @@ class RepoProcessor:
             else:
                 self.progress.update(self.task_id, status=f"Pulling shallow ")
                 # We need to pull the main branch shallow
-                ret, out, err = await run_git("pull", "--rebase", "--depth", "1", cwd=module_path)
+                refspec_info = self.repo_info.refspec_info[0]
+                ret, out, err = await run_git(
+                    "fetch",
+                    "--depth",
+                    "1",
+                    refspec_info.remote,
+                    f"{refspec_info.refspec}:{refspec_info.refspec}",
+                    cwd=module_path,
+                )
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
