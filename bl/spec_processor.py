@@ -123,6 +123,8 @@ def parse_fetch_output(output: str) -> List[Dict]:
 # amount of data
 def create_clone_args(clone_info: CloneInfo) -> List[str]:
     """Creates git clone arguments based on the base origin."""
+    ref_spec_info = clone_info.root_refspec_info
+
     args = [
         "clone",
         "--filter=tree:0",
@@ -130,6 +132,8 @@ def create_clone_args(clone_info: CloneInfo) -> List[str]:
         "feature.manyFiles=true",
         "--config",
         "feature.experimental=true",
+        "--origin",
+        ref_spec_info.remote,
     ]
 
     if clone_info.clone_flags & CloneFlags.SHALLOW:
@@ -140,8 +144,6 @@ def create_clone_args(clone_info: CloneInfo) -> List[str]:
     if clone_info.clone_flags & CloneFlags.SPARSE:
         args += ["--sparse"]
 
-    ref_spec_info = clone_info.root_refspec_info
-
     if ref_spec_info.type == OriginType.REF:
         args += [
             "--revision",
@@ -149,8 +151,6 @@ def create_clone_args(clone_info: CloneInfo) -> List[str]:
         ]
     else:
         args += [
-            "--origin",
-            ref_spec_info.remote,
             "--branch",
             ref_spec_info.refspec,
         ]
