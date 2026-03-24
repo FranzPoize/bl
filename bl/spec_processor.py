@@ -689,6 +689,8 @@ class RepoProcessor:
                     self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
                 )
                 self.progress.advance(self.task_id)
+                if ret != 0:
+                    return ret
 
             # We sparse checkout after the merge because it's faster to do it
             # in this order
