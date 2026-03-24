@@ -86,20 +86,16 @@ bl clean [-c PATH_TO_SPEC] [-o CONFIG_OVERRIDE] [-w WORKDIR] [--log-level LEVEL]
 
 #### What does it do
 By default it scans all repos in the spec for dirty git state and resets them with `git reset --hard`.
-With `--remove` deletes `src` and `external-src` directories instead of resetting diry repo.
-With `--unlink` it also cleans the links directory.
-With `--dry-run` it just outputs what it would do without doing it.
-With `--force` it removes confirmation prompts.
 
 #### Params
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `LEVEL` log level (see `--log-level` above)
-* `--remove` also delete `src` and `external-src` directories
-* `--unlink` clean the links directory
+* `--remove` delete `src` and `external-src` directories
+* `--unlink` also clean the links directory
 * `--force` remove confirmation prompts
-* `--dry-run` just output dirty repos without resetting
+* `--dry-run` just output what it would do
 
 ## Odoo is taking a really long time to clone
 
