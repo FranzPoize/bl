@@ -698,3 +698,54 @@ stock-logistics-barcode:
     - oca 14.0
     - oca refs/pull/545/head
     - ak 14.0-imp_product_multi_barcode
+
+product-attribute:
+  modules:
+    - product_code_unique
+    - product_pricelist_revision
+    - product_stock_state
+    - product_supplierinfo_group
+    - product_profile
+    - base_product_mass_addition
+    - product_form_pricelist
+    - product_total_weight_from_packaging
+    - product_weight
+    - product_packaging_dimension
+    - product_logistics_uom
+    - product_manufacturer
+    - product_packaging_type
+    - product_attribute_archive
+    - product_state
+    - packaging_uom
+    - product_template_tags
+    - product_tier_validation
+    - product_multi_category
+    - sale_product_template_tags
+    - product_sale_description_markdown
+    - product_import_autocomplete_attribute
+    - product_attribute_variant_rules
+    - product_attribute_value_dependant_mixin
+    - product_next_reception_date
+    - product_pricelist_filter
+    - product_category_active
+
+  remotes:
+    oca: https://github.com/oca/product-attribute
+    ak: https://github.com/akretion/product-attribute
+  merges:
+    - oca 14.0
+    - oca refs/pull/976/head # [FIX] fix product profile
+      # TODO in next version we are going to refactor this module
+    - ak 14.0-product-profile-improvement
+    - ak 14.0-imp-force_default_state_on_create # [IMP] product_tier_validation
+    - oca refs/pull/1334/head # [IMP] product_supplierinfo_group: give the possibility to import supplier group from product.product
+    - oca refs/pull/1390/head # [ADD] product_sale_description_markdown
+    - oca refs/pull/830/head # [ADD] product_import_autocomplete_attribute
+    - ak 14.0-fix-native-view #oca refs/pull/1567/head
+    - ak 14.0-ADD-product_attribute_value_dependant_mixin # [ADD] product_attribute_value_dependant_mixin
+    - oca refs/pull/1637/head # [FIX] product_supplierinfo_group: do not break native view
+    - oca refs/pull/1914/head # [FIX] product_supplierinfo_group: fix incompatibility with other module
+    - ak 14.0-product_next_reception_date # TODO [FUSION] adapt the company logic to business unit
+    - ak 14.0-product_pricelist_filter
+    - oca refs/pull/2071/head # [IMP][product_form_pricelist] add active_test to fixed_pricelist_item_ids
+    - oca refs/pull/2095/head # product_pricelist_revision with rounding_digits field

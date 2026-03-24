@@ -15,3 +15,7 @@ benchmark/bl_benchmark/noukies-frz.yaml
 benchmark/ak_benchmark/repo.yaml
 /dev_folder
 /tmp
+/benchmark/ak_benchmark/noukies-spec.yaml
+/benchmark/ak_benchmark/prodotti-spec.yaml
+/benchmark/bl_benchmark/noukies-spec.yaml
+/benchmark/bl_benchmark/prodotti-spec.yaml
