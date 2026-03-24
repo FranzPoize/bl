@@ -71,7 +71,7 @@ jobs:
         working-directory: benchmark/bl_benchmark/
 
       - name: Run ak build and sparse
-        run: ak build -c ci-spec.yaml -f ci-frz.yml && ak sparse -c ci-spec.yaml
+        run: ak build -c ci-spec.yaml -f ci-frz.yml -j 5 && ak sparse -c ci-spec.yaml
         working-directory: benchmark/ak_benchmark/
 
       - name: Compare results
