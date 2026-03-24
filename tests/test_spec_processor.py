@@ -562,6 +562,39 @@ async def test_reset_repo_for_work_not_exists(monkeypatch, tmp_path: Path) -> No
     assert "Repo does not exist" in err
 
 
+def test_rich_warning() -> None:
+    from bl.spec_processor import rich_warning
+
+    rich_warning("test message", UserWarning, "test.py", 10)
+
+
+def test_parse_fetch_output_empty() -> None:
+    result = parse_fetch_output("")
+    assert result == []
+
+
+def test_parse_fetch_output_fast_forward() -> None:
+    output = " abc123 def456 refs/heads/main"
+    result = parse_fetch_output(output)
+    assert len(result) == 1
+    assert result[0]["base"] == "abc123"
+    assert result[0]["target"] == "def456"
+
+
+def test_parse_fetch_output_tag() -> None:
+    output = "tag abc123 def456 refs/heads/main"
+    result = parse_fetch_output(output)
+    assert len(result) == 1
+    assert result[0]["base"] == "abc123"
+    assert result[0]["target"] == "def456"
+
+
+def test_parse_fetch_output_skips_zero_hash() -> None:
+    output = " abc000000000 def456 refs/heads/main"
+    result = parse_fetch_output(output)
+    assert len(result) == 1
+
+
 @pytest.mark.asyncio
 async def test_check_main_remote_multiple_remotes_returns_early(tmp_path: Path) -> None:
     """With multiple remotes, should return early with 0."""

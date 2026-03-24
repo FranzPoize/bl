@@ -52,6 +52,10 @@ branch = true
 include = [
   "bl/*"
 ]
+omit = [
+  "__init__.py",
+  "__main__.py"
+]
 
 [tool.coverage.report]
 ignore_errors = true

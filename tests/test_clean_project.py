@@ -304,3 +304,116 @@ async def test_clean_project_no_flags_uses_dirty_check(monkeypatch, tmp_path: Pa
     ret = await clean_project(project)
     assert ret == 0
     assert any("No dirty repositories" in str(p) for p in printed)
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_success(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_index_lock(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "reset" in args:
+            return 1, "", "error: cannot lock index file index.lock: File exists"
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_other_error(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "reset" in args:
+            return 1, "", "some other error"
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == -1
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_links_path_does_not_exist(tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+
+    workdir = tmp_path
+    ret = await handle_unlink(workdir, dry_run=False)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_dry_run(tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+
+    workdir = tmp_path
+    links = workdir / "links"
+    links.mkdir()
+
+    ret = await handle_unlink(workdir, dry_run=True)
+    assert ret == 0
+    assert links.exists()
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_failure(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    links = workdir / "links"
+    links.mkdir()
+    (links / "link1").symlink_to(tmp_path / "target")
+
+    async def fake_unlink_path(path):
+        return 1, "some error"
+
+    monkeypatch.setattr("bl.clean_project.unlink_path", fake_unlink_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_unlink(workdir, dry_run=False)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_remove_dry_run_shows_existing(tmp_path: Path, monkeypatch) -> None:
+    from bl.clean_project import handle_remove
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_remove(workdir, force=True, dry_run=True)
+    assert ret == 0
+    assert src.exists()
