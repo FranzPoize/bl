@@ -11,7 +11,15 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn
 from rich.table import Column, Table
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
-from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run, run_git
+from bl.utils import (
+    english_env,
+    format_diff,
+    get_local_ref,
+    get_module_path,
+    run,
+    run_git,
+    unlink_path,
+)
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -387,14 +395,9 @@ class RepoProcessor:
                     if local_src_path:
                         src_path = local_src_path
 
-                if dest_path.is_symlink():
-                    await asyncio.to_thread(os.unlink, dest_path)
-                elif dest_path.is_mount():
-                    ret, out, err = await run("umount", str(dest_path))
-                    if ret != 0:
-                        return -1, f"Failed to unmount {dest_path} {out} {err}"
-                if dest_path.is_dir() and not dest_path.is_mount():
-                    await asyncio.to_thread(dest_path.rmdir)
+                ret, err = await unlink_path(dest_path)
+                if ret != 0:
+                    return ret, err
 
                 if self.use_bindfs:
                     # Create the destination directory if it doesn't exist, bindfs requires it to exist
