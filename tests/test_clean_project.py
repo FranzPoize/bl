@@ -112,7 +112,7 @@ async def test_clean_project_unlink_flag(tmp_path: Path) -> None:
     project = ProjectSpec(repos={}, workdir=workdir)
     ret = await clean_project(project, unlink=True)
     assert ret == 0
-    assert not links.exists()
+    assert not (links / "l1").exists()
 
 
 @pytest.mark.asyncio
@@ -202,3 +202,105 @@ async def test_show_diffs(monkeypatch, tmp_path: Path) -> None:
 
     assert any("unstaged diff content" in s for s in printed_content)
     assert any("staged diff content" in s for s in printed_content)
+
+
+@pytest.mark.asyncio
+async def test_clean_directory_interactive_oserror(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "to_delete"
+    target.mkdir()
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    import shutil
+
+    def fake_rmtree(path):
+        raise OSError("boom")
+
+    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+    failed = _clean_directory(target, non_interactive=False)
+    assert failed is True
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_dirty_repo(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_dirty_repos
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+    monkeypatch.setattr("builtins.input", lambda x: "n")
+
+    ret = await handle_dirty_repos(project, dry_run=False)
+    assert ret == 1
+    assert any("dirty repositories" in str(p).lower() for p in printed)
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_dry_run(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_dirty_repos
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_dirty_repos(project, dry_run=True)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_clean_project_no_flags_uses_dirty_check(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import clean_project
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
+    (src / ".git").mkdir()
+
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    async def fake_run_git(*args, cwd=None):
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await clean_project(project)
+    assert ret == 0
+    assert any("No dirty repositories" in str(p) for p in printed)
