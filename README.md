@@ -17,14 +17,16 @@ You can also override the default paths and verbosity with:
 
 - `-c/--config`: path to the project spec file (default: `spec.yaml`)
 - `-z/--frozen`: path to the frozen spec file (default: `frozen.yaml`)
+- `-o/--config-override`: path to an override config to extend the project specification
 - `-j/--concurrency`: number of concurrent tasks (default: `28`)
+- `-b/--use-bindfs`: use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
 - `-w/--workdir`: working directory, defaults to the directory of `--config`
 - `--log-level`: one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `WARNING`)
 
 ### Build
 
 ```bash
-bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [-w WORKDIR] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -33,7 +35,9 @@ It does what ak build does
 #### Params
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
+* `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
+* `--use-bindfs` use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `LEVEL` log level (see `--log-level` above)
 
@@ -43,7 +47,7 @@ It does what ak build does
 ### Freeze
 
 ```bash
-bl freeze [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+bl freeze [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -52,6 +56,24 @@ It does what ak freeze does
 #### Params
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
+* `CONFIG_OVERRIDE` path to an override config to extend the project specification
+* `CONCURRENCY` number of module clone simultaneously (default: `28`)
+* `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `LEVEL` log level (see `--log-level` above)
+
+### Diff
+
+```bash
+bl diff [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+```
+
+#### What does it do
+Shows diff for all dirty repos in the project.
+
+#### Params
+* `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
+* `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
+* `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `LEVEL` log level (see `--log-level` above)
@@ -59,20 +81,25 @@ It does what ak freeze does
 ### Clean
 
 ```bash
-bl clean [-c PATH_TO_SPEC] [-w WORKDIR] [--log-level LEVEL] [--i-am-stupid] [--dirty]
+bl clean [-c PATH_TO_SPEC] [-o CONFIG_OVERRIDE] [-w WORKDIR] [--log-level LEVEL] [--remove] [--unlink] [--force] [--dry-run]
 ```
 
 #### What does it do
-By default it asks you if you want to delete `external-src` and `src` under the workdir and then deletes them.
-With `--i-am-stupid` it deletes those directories without prompting.
-With `--dirty` it additionally scans all repos in the spec for dirty git state and offers to clean them with `git reset --hard`.
+By default it scans all repos in the spec for dirty git state and resets them with `git reset --hard`.
+With `--remove` deletes `src` and `external-src` directories instead of resetting diry repo.
+With `--unlink` it also cleans the links directory.
+With `--dry-run` it just outputs what it would do without doing it.
+With `--force` it removes confirmation prompts.
 
 #### Params
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
+* `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `LEVEL` log level (see `--log-level` above)
-* `--i-am-stupid` delete `src` and `external-src` non‑interactively
-* `--dirty` also inspect repos and optionally clean dirty ones with `git reset --hard`
+* `--remove` also delete `src` and `external-src` directories
+* `--unlink` clean the links directory
+* `--force` remove confirmation prompts
+* `--dry-run` just output dirty repos without resetting
 
 ## Odoo is taking a really long time to clone
 

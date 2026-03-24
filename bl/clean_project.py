@@ -186,7 +186,7 @@ async def clean_project(
     workdir = project_spec.workdir
     failed = False
 
-    if not remove and not unlink:
+    if not remove:
         if await handle_dirty_repos(project_spec, dry_run):
             failed = True
 
