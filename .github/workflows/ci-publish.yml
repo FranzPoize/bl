@@ -61,6 +61,11 @@ jobs:
           rm -rf benchmark/bl_benchmark/external-src/
           rm -rf benchmark/ak_benchmark/external-src/
 
+      - name: Configure git identity
+        run: |
+          git config --global user.name "CI Bot"
+          git config --global user.email "ci@example.com"
+
       - name: Run bl build
         run: bl build -c abilis-spec.yaml -z abilis-frz.yml --log-level=DEBUG -j 1
         working-directory: benchmark/bl_benchmark/
