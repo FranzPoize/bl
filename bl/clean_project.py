@@ -1,4 +1,3 @@
-import asyncio
 import shutil
 from pathlib import Path
 
@@ -88,6 +87,87 @@ async def show_diffs(project_spec: ProjectSpec):
             console.print(out)
 
 
+async def handle_dirty_repos(project_spec: ProjectSpec, dry_run: bool) -> int:
+    """Check for dirty repositories and offer to reset them.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    dirty_repo_infos = await gather_dirty_repo_info(project_spec)
+    for name, repo_info, output, module_path in dirty_repo_infos:
+        console.print(f"[yellow]Repo is dirty:[/] [cyan]{name}[/] at {module_path}")
+        console.print(format_diff(output))
+
+    if not dirty_repo_infos:
+        console.print("[cyan]No dirty repositories.[/]")
+        return 0
+
+    if dry_run:
+        console.print("[cyan]Would reset dirty repositories.[/]")
+        return 0
+
+    console.print("[bold red]Warning: there are dirty repositories![/]")
+    answer = input("Reset dirty repositories? [y/N]: ").strip().lower()
+    if answer != "y":
+        console.print("[cyan]Aborted.[/]")
+        return 1
+
+    failed = False
+    for name, repo_info, output, module_path in dirty_repo_infos:
+        console.print(f"[yellow]Reset:[/] {name}")
+        ret, out, err = await reset_repo(module_path)
+        if ret != 0:
+            console.print(f"[red]Failed to reset {name}:[/] {err}")
+            failed = True
+
+    return 1 if failed else 0
+
+
+async def handle_unlink(workdir: Path, dry_run: bool) -> int:
+    """Remove links folder contents.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    links_path = workdir / "links"
+    if not links_path.exists():
+        return 0
+
+    children = sorted(links_path.iterdir())
+    if dry_run:
+        for child in children:
+            console.print(f"[cyan]Would unlink:[/] {child}")
+        return 0
+
+    failed = False
+    for child in children:
+        ret, err = await unlink_path(child)
+        if ret != 0:
+            console.print(f"[red]Failed to unlink {child}:[/] {err}")
+            failed = True
+
+    return 1 if failed else 0
+
+
+async def handle_remove(workdir: Path, force: bool, dry_run: bool) -> int:
+    """Delete src and external-src directories.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    targets = [workdir / "src", workdir / "external-src"]
+    failed = False
+
+    for target in targets:
+        if dry_run:
+            if target.exists():
+                console.print(f"[cyan]Would delete:[/] {target}")
+            continue
+
+        deletion_failed = _clean_directory(target, force)
+        if deletion_failed:
+            failed = True
+
+    return 1 if failed else 0
+
+
 async def clean_project(
     project_spec: ProjectSpec,
     remove: bool = False,
@@ -97,47 +177,25 @@ async def clean_project(
 ) -> int:
     """Clean src and external-src directories under the project workdir.
 
-    Check for dirty repositories and warn if any are found.
+    Behavior depends on flags:
+    - No flags: Check dirty repositories and offer to reset them
+    - remove: Delete src and external-src directories
+    - unlink: Remove links folder contents
+    - dry_run: Show what would be done without executing
     """
     workdir = project_spec.workdir
-    dirty_repo_infos = await gather_dirty_repo_info(project_spec)
-    for name, repo_info, output, module_path in dirty_repo_infos:
-        console.print(f"[yellow]Repo is dirty:[/] [cyan]{name}[/] at {module_path}")
-        console.print(format_diff(output))
-
-    if dry_run:
-        return 0
-
     failed = False
 
+    if not remove and not unlink:
+        if await handle_dirty_repos(project_spec, dry_run):
+            failed = True
+
     if unlink:
-        links_path = workdir / "links"
-        if links_path.exists():
-            for child in sorted(links_path.iterdir()):
-                ret, err = await unlink_path(child)
-                if ret != 0:
-                    console.print(f"[red]Failed to unlink {child}:[/] {err}")
-                    failed = True
-            try:
-                links_path.rmdir()
-                console.print(f"[cyan]Deleted:[/] {links_path}")
-            except OSError:
-                # Might not be empty if unlinking failed for some children
-                pass
+        if await handle_unlink(workdir, dry_run):
+            failed = True
 
     if remove:
-        if dirty_repo_infos:
-            console.print("[bold red]Warning: there are dirty repositories![/]")
-            if not force:
-                answer = input("Continue with removal of src and external-src? [y/N]: ").strip().lower()
-                if answer != "y":
-                    console.print("[cyan]Aborted.[/]")
-                    return 1 if failed else 0
-
-        targets = [workdir / "src", workdir / "external-src"]
-        for target in targets:
-            deletion_failed = _clean_directory(target, force)
-            if deletion_failed:
-                failed = True
+        if await handle_remove(workdir, force, dry_run):
+            failed = True
 
     return 1 if failed else 0
