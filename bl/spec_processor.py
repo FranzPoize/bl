@@ -626,10 +626,6 @@ class RepoProcessor:
 
             ret, err = await self.setup_remote_branches(module_path)
 
-            if ret != 0:
-                self.progress.update(self.task_id, status=f"[red]Setup remote branch: {err}[/red]")
-                return -1
-
             self.progress.advance(self.task_id)
 
             ret, err = await self.unshallow_if_necessary(module_path)

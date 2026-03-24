@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -441,4 +442,574 @@ async def test_run_shell_commands_failure(monkeypatch, tmp_path: Path) -> None:
     module_path.mkdir()
 
     ret = await rp.run_shell_commands(rp.repo_info, module_path)
+    assert ret == -1
+
+
+@pytest.mark.asyncio
+async def test_link_all_modules_unlink_error(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+    (module_path / "mod1").mkdir()
+
+    links_path = tmp_path / "links"
+    links_path.mkdir()
+    dest_link = links_path / "mod1"
+    dest_link.symlink_to(module_path / "mod1")
+
+    async def fake_unlink_path(path):
+        return 1, "unlink failed"
+
+    monkeypatch.setattr(sp, "unlink_path", fake_unlink_path)
+
+    ret, err = await rp.link_all_modules(["mod1"], module_path, {})
+    assert ret != 0
+    assert "unlink failed" in err
+
+
+@pytest.mark.asyncio
+async def test_run_shell_commands_git_am_deprecated(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info(shell_commands=["git am patches/*.patch"]))
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    check_and_apply_called_with = []
+
+    async def fake_check_and_apply_patch(glob, module_path):
+        check_and_apply_called_with.append(glob)
+        return 0, ""
+
+    monkeypatch.setattr(rp, "check_and_apply_patch", fake_check_and_apply_patch)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        ret = await rp.run_shell_commands(rp.repo_info, module_path)
+
+        assert len(w) == 1
+        assert issubclass(w[0].category, DeprecationWarning)
+        assert "run_shell_commands is deprecated" in str(w[0].message)
+
+    assert ret == 0
+    assert check_and_apply_called_with == ["patches/*.patch"]
+
+
+@pytest.mark.asyncio
+async def test_check_main_remote_get_url_fails(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(remotes={"origin": "https://example.com/repo.git"}, refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "get-url" in args:
+            return 1, "", "remote not found"
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.check_main_remote(module_path)
+    assert ret != 0
+    assert "remote not found" in err
+
+
+@pytest.mark.asyncio
+async def test_check_main_remote_add_fails_after_remove(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(remotes={"origin": "https://new-url.com/repo.git"}, refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "get-url" in args:
+            return 0, "https://old-url.com/repo.git", ""
+        if "remove" in args:
+            return 0, "", ""
+        if "add" in args:
+            return 1, "", "failed to add remote"
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.check_main_remote(module_path)
+    assert ret != 0
+    assert "failed to add remote" in err
+
+
+@pytest.mark.asyncio
+async def test_unshallow_if_necessary_does_unshallow(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main"), _make_ref("origin", "feature")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    calls = []
+
+    async def fake_run_git(*args: str, cwd=None):
+        calls.append(args)
+        if "--is-shallow-repository" in args:
+            return 0, "true", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.unshallow_if_necessary(module_path)
+    assert ret == 0
+    assert err == ""
+
+    pull_call = next(c for c in calls if c[0] == "pull")
+    assert "--unshallow" in pull_call
+
+
+@pytest.mark.asyncio
+async def test_checkout_or_create_base_branch_local_branch(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "feature")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "rev-parse" in args and "--verify" in args:
+            return 0, "", ""
+        if "checkout" in args:
+            return 0, "output", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    base_refspec = refspecs[0]
+    ret, out, err = await rp.checkout_or_create_base_branch(base_refspec, module_path)
+    assert ret == 0
+    assert out == "output"
+    assert err == ""
+
+
+@pytest.mark.asyncio
+async def test_setup_main_branch_success(monkeypatch, tmp_path: Path) -> None:
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_checkout_or_create_base_branch(base_refspec, module_path):
+        return 0, "output", ""
+
+    rp.checkout_or_create_base_branch = fake_checkout_or_create_base_branch
+
+    ret, out, err = await rp.setup_main_branch(module_path)
+    assert ret == 0
+    assert out == ""
+    assert err == ""
+
+
+@pytest.mark.asyncio
+async def test_setup_merged_branch_delete_existing(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "rev-parse" and args[1] == "--verify" and args[2] == "merged":
+            return 0, "", ""
+        if args[0] == "branch" and args[1] == "-D" and args[2] == "merged":
+            return 0, "", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.setup_merged_branch(module_path)
+    assert ret == 0
+    assert err == ""
+
+
+@pytest.mark.asyncio
+async def test_setup_merged_branch_create_new(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main"), _make_ref("origin", "feature")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "rev-parse" and args[1] == "--verify" and args[2] == "merged":
+            return 1, "", "not found"
+        if args[0] == "switch" and args[1] == "-C" and args[2] == "merged":
+            return 0, "", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.setup_merged_branch(module_path)
+    assert ret == 0
+    assert err == ""
+
+
+@pytest.mark.asyncio
+async def test_link_all_modules_bindfs_failure(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+    import logging
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+    rp.task_id = 0
+    rp.use_bindfs = True
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+    (module_path / "mod1").mkdir()
+
+    links_path = tmp_path / "links"
+    links_path.mkdir()
+
+    async def fake_run(*args, **kwargs):
+        return 1, "", "bindfs failed"
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr(logging, "debug", lambda x: None)
+
+    ret, err = await rp.link_all_modules(["mod1"], module_path, {})
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_link_all_modules_oserror(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+    (module_path / "mod1").mkdir()
+
+    links_path = tmp_path / "links"
+    links_path.mkdir()
+
+    async def fake_unlink_path(path):
+        return 0, ""
+
+    def fake_symlink(*args, **kwargs):
+        raise OSError("symlink failed")
+
+    monkeypatch.setattr(sp, "unlink_path", fake_unlink_path)
+    monkeypatch.setattr("bl.spec_processor.os.symlink", fake_symlink)
+
+    ret, err = await rp.link_all_modules(["mod1"], module_path, {})
+    assert ret == -1
+    assert "symlink failed" in err
+
+
+@pytest.mark.asyncio
+async def test_merge_spec_into_tree_success(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+    from bl.spec_processor import console
+
+    refspecs = [_make_ref("origin", "feature")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "merge" in args:
+            return 0, "Merge successful", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ref = refspecs[0]
+    root_ref = _make_ref("origin", "main")
+    ret, err = await rp.merge_spec_into_tree(repo_info, ref, root_ref, module_path)
+    assert ret == 0
+    assert err == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_multi_calls_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    ref1 = _make_ref("origin", "main")
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+    rp.task_id = 0
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    print_calls = []
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "fetch":
+            return 0, "f abc123 def456 refs/heads/main\n", ""
+        return 0, "", ""
+
+    async def fake_print_fetch_output(name, fetch_data, module_path):
+        print_calls.append((name, fetch_data))
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr(sp, "print_fetch_output", fake_print_fetch_output)
+
+    ret, out, err = await rp.fetch_multi("origin", [ref1], module_path)
+    assert ret == 0
+    assert len(print_calls) == 1
+    assert print_calls[0][0] == "test-repo"
+
+
+@pytest.mark.asyncio
+async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+    rp.task_id = 0
+
+    async def fake_process_repo(*args):
+        raise RuntimeError("test error")
+
+    monkeypatch.setattr(rp, "process_repo", fake_process_repo)
+
+    with pytest.raises(RuntimeError, match="test error"):
+        await rp.queue_repo_task()
+
+
+@pytest.mark.asyncio
+async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> None:
+    from bl.spec_processor import process_project
+    from bl.types import ProjectSpec, RepoInfo
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    repo_info = RepoInfo(
+        modules=[],
+        remotes={},
+        refspecs=[],
+        shell_commands=[],
+        patch_globs_to_apply=[],
+        target_folder=None,
+        locales=[],
+        paths={},
+    )
+    project_spec = ProjectSpec(workdir=workdir, repos={"test": repo_info})
+
+    class DummySemaphore:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    async def fake_queue_repo_task():
+        return 1
+
+    class FakeRepoProcessor:
+        def __init__(self, rp):
+            pass
+
+        async def queue_repo_task(self):
+            return 1
+
+    from bl import spec_processor as sp
+
+    monkeypatch.setattr(sp, "RepoProcessor", FakeRepoProcessor)
+
+    with pytest.raises(Exception):
+        await process_project(project_spec, concurrency=1)
+
+
+@pytest.mark.asyncio
+async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(
+        modules=[],
+        remotes={"origin": "https://example.com/repo.git"},
+        refspecs=refspecs,
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.name = "test-repo"
+
+    module_path = tmp_path / "external-src" / "test-repo"
+    module_path.mkdir(parents=True)
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "status" and "--porcelain" in args:
+            return 1, "", "repo is dirty"
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+
+    ret = await rp.process_repo(module_path, [], [])
+    assert ret == -1
+
+
+@pytest.mark.asyncio
+async def test_setup_sparse_checkout_odoo_with_locales(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    repo_info = _make_repo_info(modules=["mod1"], locales=["fr_FR"])
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.name = "odoo"
+    rp.task_id = 0
+    module_path = tmp_path / "odoo"
+    module_path.mkdir()
+
+    calls = []
+
+    async def fake_run_git(*args, cwd=None):
+        calls.append(args)
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    await rp.setup_sparse_checkout(["mod1"], module_path)
+
+    assert any(c[0:3] == ("sparse-checkout", "init", "--no-cone") for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_process_repo_with_cloning_and_temp_branch(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(
+        modules=["mod1"],
+        remotes={"origin": "https://example.com/repo.git"},
+        refspecs=refspecs,
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.name = "test-repo"
+
+    module_path = tmp_path / "external-src" / "test-repo"
+    module_path.mkdir(parents=True)
+
+    git_calls = []
+
+    async def fake_run_git(*args, cwd=None):
+        git_calls.append(args)
+        cmd = args[0]
+        if cmd == "status" and "--porcelain" in args:
+            return 0, "", ""
+        if cmd == "remote" and "get-url" in args:
+            return 0, "https://example.com/repo.git", ""
+        if cmd == "remote" and "add" in args:
+            return 0, "", ""
+        if cmd == "config":
+            return 0, "", ""
+        if cmd == "rev-parse":
+            if "--abbrev-ref" in args:
+                return 0, "main", ""
+            if "--verify" in args:
+                if "temp" in args:
+                    return 1, "", "not found"
+                return 0, "", ""
+            return 0, "", ""
+        if cmd == "switch":
+            return 0, "", ""
+        if cmd == "fetch":
+            return 0, "", ""
+        if cmd == "checkout":
+            return 0, "", ""
+        if cmd == "reset":
+            return 0, "", ""
+        if cmd == "branch":
+            return 0, "", ""
+        if cmd == "sparse-checkout":
+            return 0, "", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+
+    ret = await rp.process_repo(module_path, ["mod1"], ["mod1"])
+    assert ret == 0 or ret is None
+
+
+@pytest.mark.asyncio
+async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main")]
+    repo_info = _make_repo_info(
+        modules=[],
+        remotes={"origin": "https://example.com/repo.git"},
+        refspecs=refspecs,
+        shell_commands=["false"],
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.name = "test-repo"
+
+    module_path = tmp_path / "external-src" / "test-repo"
+    module_path.mkdir(parents=True)
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "status" and "--porcelain" in args:
+            return 0, "", ""
+        if args[0] == "remote" and "get-url" in args:
+            return 0, "https://example.com/repo.git", ""
+        if args[0] == "remote" and "add" in args:
+            return 0, "", ""
+        if args[0] == "config":
+            return 0, "", ""
+        if args[0] == "rev-parse":
+            if "--abbrev-ref" in args:
+                return 0, "main", ""
+            if "--verify" in args:
+                if "temp" in args:
+                    return 1, "", "not found"
+                return 0, "", ""
+            return 0, "", ""
+        if args[0] == "switch":
+            return 0, "", ""
+        if args[0] == "fetch":
+            return 0, "", ""
+        if args[0] == "checkout":
+            return 0, "", ""
+        if args[0] == "reset":
+            return 0, "", ""
+        if args[0] == "branch":
+            return 0, "", ""
+        if args[0] == "sparse-checkout":
+            return 0, "", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+
+    ret = await rp.process_repo(module_path, [], [])
     assert ret == -1
