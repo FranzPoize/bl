@@ -46,3 +46,19 @@ select = ["E", "F", "I"]
 
 [tool.mypy]
 strict = true
+
+[tool.coverage.run]
+branch = true
+include = [
+  "bl/*"
+]
+omit = [
+  "__init__.py",
+  "__main__.py"
+]
+
+[tool.coverage.report]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "coverage_html_report"

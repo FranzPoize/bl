@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from bl.clean_project import (
     _clean_directory,
-    _clean_dirty_repos,
     gather_dirty_repo_info,
-    reset_dirty_repos,
     clean_project,
+    show_diffs,
 )
 from bl.types import ProjectSpec, RepoInfo
 
@@ -55,7 +55,6 @@ def test_clean_directory_non_interactive_failure(monkeypatch, tmp_path: Path) ->
 
     failed = _clean_directory(target, non_interactive=True)
     assert failed is True
-    # Directory may or may not remain, but we only care about failure flag here.
 
 
 def test_clean_directory_interactive_yes(monkeypatch, tmp_path: Path) -> None:
@@ -81,24 +80,8 @@ def test_clean_directory_interactive_no(monkeypatch, tmp_path: Path) -> None:
     assert target.exists()
 
 
-def test_clean_directory_interactive_error_after_confirmation(monkeypatch, tmp_path: Path) -> None:
-    import shutil
-
-    target = tmp_path / "to_delete"
-    target.mkdir()
-
-    monkeypatch.setattr("builtins.input", lambda _: "y")
-
-    def failing_rmtree(path: Path) -> None:
-        raise OSError("boom")
-
-    monkeypatch.setattr(shutil, "rmtree", failing_rmtree)
-
-    failed = _clean_directory(target, non_interactive=False)
-    assert failed is True
-
-
-def test_clean_project_non_interactive_removes_dirs(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_clean_project_remove_flag(tmp_path: Path) -> None:
     workdir = tmp_path
     src = workdir / "src"
     external = workdir / "external-src"
@@ -106,85 +89,50 @@ def test_clean_project_non_interactive_removes_dirs(tmp_path: Path) -> None:
     external.mkdir()
 
     project = ProjectSpec(repos={}, workdir=workdir)
-    ret = clean_project(project, non_interactive=True)
+    # By default, clean_project (with no flags) just checks for dirty repos.
+    ret = await clean_project(project)
+    assert ret == 0
+    assert src.exists()
+    assert external.exists()
+
+    # With remove=True, it should delete them.
+    ret = await clean_project(project, remove=True, force=True)
     assert ret == 0
     assert not src.exists()
     assert not external.exists()
 
 
-def test_clean_project_non_interactive_partial_failure(monkeypatch, tmp_path: Path) -> None:
-    import shutil
-
+@pytest.mark.asyncio
+async def test_clean_project_unlink_flag(tmp_path: Path) -> None:
     workdir = tmp_path
-    src = workdir / "src"
-    external = workdir / "external-src"
-    src.mkdir()
-    external.mkdir()
-
-    real_rmtree = shutil.rmtree
-
-    def fake_rmtree(path: Path) -> None:
-        if path == src.resolve():
-            raise OSError("boom")
-        real_rmtree(path)
-
-    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+    links = workdir / "links"
+    links.mkdir()
+    (links / "l1").symlink_to(workdir)
 
     project = ProjectSpec(repos={}, workdir=workdir)
-    ret = clean_project(project, non_interactive=True)
-    # One deletion failed -> clean_project should signal failure
-    assert ret == 1
+    ret = await clean_project(project, unlink=True)
+    assert ret == 0
+    assert not (links / "l1").exists()
 
 
 @pytest.mark.asyncio
-async def test_clean_dirty_repos_no_failures(monkeypatch, tmp_path: Path) -> None:
-    project = ProjectSpec(repos={}, workdir=tmp_path)
+async def test_clean_project_dry_run(monkeypatch, tmp_path: Path) -> None:
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
 
-    dirty_infos = ["dummy"]
-    gathered_specs: list[ProjectSpec] = []
-    reset_calls: list[tuple[ProjectSpec, list[str]]] = []
+    project = ProjectSpec(repos={}, workdir=workdir)
 
-    async def fake_gather_dirty_repo_info(spec: ProjectSpec) -> list[str]:
-        gathered_specs.append(spec)
-        return dirty_infos
-
-    async def fake_reset_dirty_repos(spec: ProjectSpec, infos: list[str]) -> bool:
-        reset_calls.append((spec, infos))
-        return False
-
-    monkeypatch.setattr("bl.clean_project.gather_dirty_repo_info", fake_gather_dirty_repo_info)
-    monkeypatch.setattr("bl.clean_project.reset_dirty_repos", fake_reset_dirty_repos)
-
-    result = await _clean_dirty_repos(project)
-
-    assert result is False
-    assert gathered_specs == [project]
-    assert reset_calls == [(project, dirty_infos)]
-
-
-@pytest.mark.asyncio
-async def test_clean_dirty_repos_propagates_failure(monkeypatch, tmp_path: Path) -> None:
-    project = ProjectSpec(repos={}, workdir=tmp_path)
-
-    async def fake_gather_dirty_repo_info(spec: ProjectSpec) -> list[str]:
-        return []
-
-    async def fake_reset_dirty_repos(spec: ProjectSpec, infos: list[str]) -> bool:
-        return True
-
-    monkeypatch.setattr("bl.clean_project.gather_dirty_repo_info", fake_gather_dirty_repo_info)
-    monkeypatch.setattr("bl.clean_project.reset_dirty_repos", fake_reset_dirty_repos)
-
-    result = await _clean_dirty_repos(project)
-
-    assert result is True
+    # In dry_run, it should NOT delete anything even if remove=True.
+    ret = await clean_project(project, remove=True, force=True, dry_run=True)
+    assert ret == 0
+    assert src.exists()
 
 
 @pytest.mark.asyncio
 async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp_path: Path) -> None:
     workdir = tmp_path
 
-    # Two repos: one without .git, one with .git and dirty status.
     repo_a = _make_repo_info()
     repo_b = _make_repo_info()
     project = ProjectSpec(repos={"a": repo_a, "b": repo_b}, workdir=workdir)
@@ -195,8 +143,7 @@ async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp
     module_b.mkdir()
     (module_b / ".git").mkdir()
 
-    # Make get_module_path deterministic for the test.
-    def fake_get_module_path(wd: Path, name: str, repo_info: RepoInfo) -> Path:  # type: ignore[override]
+    def fake_get_module_path(wd: Path, name: str, repo_info: RepoInfo) -> Path:
         return wd / name
 
     calls: list[Path] = []
@@ -204,7 +151,6 @@ async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp
     async def fake_run_git(*args: str, cwd: Path | None = None):
         assert cwd is not None
         calls.append(cwd)
-        # Pretend repo "b" is dirty, "a" is never queried because it lacks .git
         return 0, " M file.txt" if cwd == module_b else "", ""
 
     monkeypatch.setattr("bl.clean_project.get_module_path", fake_get_module_path)
@@ -218,41 +164,256 @@ async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp
     assert repo_info is repo_b
     assert "file.txt" in out
     assert module_path == module_b
-    # Only the git repo should have triggered a git status call.
     assert calls == [module_b]
 
 
 @pytest.mark.asyncio
-async def test_reset_dirty_repos_honors_user_choice_and_counts(monkeypatch, tmp_path: Path) -> None:
-    workdir = tmp_path
-    module_path = workdir / "mod"
-    git_dir = module_path / ".git"
-    git_dir.mkdir(parents=True)
+async def test_show_diffs(monkeypatch, tmp_path: Path) -> None:
+    from bl.spec_processor import console
 
+    workdir = tmp_path
     repo_info = _make_repo_info()
-    dirty_infos = [("mod", repo_info, " M file.txt", module_path)]
     project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
 
-    # Always answer "n" to cleaning; reset_repo should never be called.
-    answers: list[str] = []
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
 
-    def fake_input(prompt: str) -> str:
-        answers.append(prompt)
-        return "n"
-
-    reset_calls: list[Path] = []
-
-    async def fake_reset_repo(path: Path):
-        reset_calls.append(path)
+    async def fake_run_git(*args: str, cwd: Path | None = None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        if "diff" in args:
+            if "--cached" in args:
+                return 0, "staged diff content", ""
+            return 0, "unstaged diff content", ""
         return 0, "", ""
 
-    monkeypatch.setattr("builtins.input", fake_input)
-    monkeypatch.setattr("bl.clean_project.reset_repo", fake_reset_repo)
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
 
-    failed = await reset_dirty_repos(project, dirty_infos)
+    printed_content = []
 
-    # No failures should be reported and reset_repo should not have been called.
-    assert failed == 0
-    assert reset_calls == []
-    assert any("Clean repo mod" in prompt for prompt in answers)
+    def fake_print(content: Any):
+        printed_content.append(str(content))
 
+    monkeypatch.setattr(console, "print", fake_print)
+
+    await show_diffs(project)
+
+    assert any("unstaged diff content" in s for s in printed_content)
+    assert any("staged diff content" in s for s in printed_content)
+
+
+@pytest.mark.asyncio
+async def test_clean_directory_interactive_oserror(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "to_delete"
+    target.mkdir()
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    import shutil
+
+    def fake_rmtree(path):
+        raise OSError("boom")
+
+    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+    failed = _clean_directory(target, non_interactive=False)
+    assert failed is True
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_dirty_repo(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_dirty_repos
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+    monkeypatch.setattr("builtins.input", lambda x: "n")
+
+    ret = await handle_dirty_repos(project, dry_run=False)
+    assert ret == 1
+    assert any("dirty repositories" in str(p).lower() for p in printed)
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_dry_run(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_dirty_repos
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_dirty_repos(project, dry_run=True)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_clean_project_no_flags_uses_dirty_check(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import clean_project
+    from bl.spec_processor import console
+    from unittest.mock import AsyncMock
+
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
+    (src / ".git").mkdir()
+
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    async def fake_run_git(*args, cwd=None):
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await clean_project(project)
+    assert ret == 0
+    assert any("No dirty repositories" in str(p) for p in printed)
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_success(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_index_lock(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "reset" in args:
+            return 1, "", "error: cannot lock index file index.lock: File exists"
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_reset_repo_other_error(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import reset_repo
+
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "reset" in args:
+            return 1, "", "some other error"
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+
+    ret, out, err = await reset_repo(module_path)
+    assert ret == -1
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_links_path_does_not_exist(tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+
+    workdir = tmp_path
+    ret = await handle_unlink(workdir, dry_run=False)
+    assert ret == 0
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_dry_run(tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+
+    workdir = tmp_path
+    links = workdir / "links"
+    links.mkdir()
+
+    ret = await handle_unlink(workdir, dry_run=True)
+    assert ret == 0
+    assert links.exists()
+
+
+@pytest.mark.asyncio
+async def test_handle_unlink_failure(monkeypatch, tmp_path: Path) -> None:
+    from bl.clean_project import handle_unlink
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    links = workdir / "links"
+    links.mkdir()
+    (links / "link1").symlink_to(tmp_path / "target")
+
+    async def fake_unlink_path(path):
+        return 1, "some error"
+
+    monkeypatch.setattr("bl.clean_project.unlink_path", fake_unlink_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_unlink(workdir, dry_run=False)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_remove_dry_run_shows_existing(tmp_path: Path, monkeypatch) -> None:
+    from bl.clean_project import handle_remove
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_remove(workdir, force=True, dry_run=True)
+    assert ret == 0
+    assert src.exists()

@@ -11,7 +11,15 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn
 from rich.table import Column, Table
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
-from bl.utils import english_env, format_diff, get_local_ref, get_module_path, run, run_git
+from bl.utils import (
+    english_env,
+    format_diff,
+    get_local_ref,
+    get_module_path,
+    run,
+    run_git,
+    unlink_path,
+)
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -78,6 +86,12 @@ def clone_info_from_repo(name: str, repo_info: RepoInfo):
 
 
 def parse_fetch_output(output: str) -> List[Dict]:
+    """Parse a fetch output
+    a fetch output is of the following form
+    <tag> <old_hash> <new_hash> <updated_ref>
+    if tag is a space (for fast-forward fetch) the line splits in 5 elements
+    otherwise it splits in 4
+    """
     results = []
     if not output:
         return results
@@ -341,7 +355,7 @@ class RepoProcessor:
             f"Can't find base branch {refspec}",
         )
 
-    async def setup_main_branch(self, module_path: Path) -> int:
+    async def setup_main_branch(self, module_path: Path) -> tuple[int, str, str]:
         base_refspec = self.repo_info.refspec_info[0]
         ret, out, err = await self.checkout_or_create_base_branch(base_refspec, module_path)
         if ret != 0:
@@ -387,14 +401,9 @@ class RepoProcessor:
                     if local_src_path:
                         src_path = local_src_path
 
-                if dest_path.is_symlink():
-                    await asyncio.to_thread(os.unlink, dest_path)
-                elif dest_path.is_mount():
-                    ret, out, err = await run("umount", str(dest_path))
-                    if ret != 0:
-                        return -1, f"Failed to unmount {dest_path} {out} {err}"
-                if dest_path.is_dir() and not dest_path.is_mount():
-                    await asyncio.to_thread(dest_path.rmdir)
+                ret, err = await unlink_path(dest_path)
+                if ret != 0:
+                    return ret, err
 
                 if self.use_bindfs:
                     # Create the destination directory if it doesn't exist, bindfs requires it to exist
@@ -616,10 +625,6 @@ class RepoProcessor:
                 return -1
 
             ret, err = await self.setup_remote_branches(module_path)
-
-            if ret != 0:
-                self.progress.update(self.task_id, status=f"[red]Setup remote branch: {err}[/red]")
-                return -1
 
             self.progress.advance(self.task_id)
 

@@ -28,7 +28,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Run tests
-        run: uv run pytest --cov --cov-branch --cov-report=xml --ignore benchmark/
+        run: uv run pytest --cov --cov-config pyproject.toml --cov-branch --cov-report=xml --ignore benchmark/
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -71,7 +71,7 @@ jobs:
         working-directory: benchmark/bl_benchmark/
 
       - name: Run ak build and sparse
-        run: ak build -c ci-spec.yaml -f ci-frz.yml && ak sparse -c ci-spec.yaml
+        run: ak build -c ci-spec.yaml -f ci-frz.yml -j 5 && ak sparse -c ci-spec.yaml
         working-directory: benchmark/ak_benchmark/
 
       - name: Compare results

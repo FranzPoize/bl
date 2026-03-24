@@ -9,7 +9,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from bl.clean_project import clean_project
+from bl.clean_project import clean_project, show_diffs
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
@@ -105,16 +105,27 @@ def run():
     sub = parser.add_subparsers(help="subcommand help", dest="command")
     sub.add_parser("build", parents=[parent_parser], help="build help")
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
+    sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
     clean_parser.add_argument(
-        "--i-am-stupid",
+        "--remove",
         action="store_true",
-        help="Delete src and external-src without prompting for confirmation.",
+        help="Delete src and external-src.",
     )
     clean_parser.add_argument(
-        "--dirty",
+        "--unlink",
         action="store_true",
-        help="Additionally check all repos for dirty state and offer to reset them with 'git reset --hard'.",
+        help="Clean the links directory.",
+    )
+    clean_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Remove confirmation prompts.",
+    )
+    clean_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Just output dirty repo.",
     )
 
     args = parser.parse_args()
@@ -131,11 +142,17 @@ def run():
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
             asyncio.run(process_project(project_spec, concurrency=args.concurrency, use_bindfs=args.use_bindfs))
+        elif args.command == "diff":
+            asyncio.run(show_diffs(project_spec))
         elif args.command == "clean":
-            ret = clean_project(
-                project_spec,
-                non_interactive=args.i_am_stupid,
-                clean_dirty_repos=args.dirty,
+            ret = asyncio.run(
+                clean_project(
+                    project_spec,
+                    remove=args.remove,
+                    unlink=args.unlink,
+                    force=args.force,
+                    dry_run=args.dry_run,
+                )
             )
             if ret != 0:
                 sys.exit(1)

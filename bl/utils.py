@@ -62,3 +62,19 @@ async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
 async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
     """Executes a git command asynchronously."""
     return await run(*["git", "--git-dir", ".git/", *args], cwd=cwd)
+
+
+async def unlink_path(path: Path) -> tuple[int, str]:
+    """Removes a symlink, unmounts a mount, or deletes an empty directory."""
+    try:
+        if path.is_symlink():
+            await asyncio.to_thread(os.unlink, path)
+        elif path.is_mount():
+            ret, out, err = await run("umount", str(path))
+            if ret != 0:
+                return -1, f"Failed to unmount {path}: {out} {err}"
+        if path.exists() and path.is_dir() and not path.is_mount():
+            await asyncio.to_thread(path.rmdir)
+    except OSError as e:
+        return -1, str(e)
+    return 0, ""

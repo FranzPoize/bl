@@ -1,10 +1,9 @@
-import asyncio
 import shutil
 from pathlib import Path
 
 from bl.spec_processor import console
 from bl.types import ProjectSpec, RepoInfo
-from bl.utils import format_diff, get_module_path, run_git
+from bl.utils import format_diff, get_module_path, run_git, unlink_path
 
 
 # TODO(franz) It should list all the target_folders in the spec and delete all of those
@@ -55,9 +54,9 @@ async def reset_repo(module_path: Path):
     return ret, out, err
 
 
-async def gather_dirty_repo_info(project_spec: ProjectSpec) -> list[RepoInfo]:
+async def gather_dirty_repo_info(project_spec: ProjectSpec) -> list[tuple[str, RepoInfo, str, Path]]:
     workdir = project_spec.workdir
-    dirty_repo_infos: list[RepoInfo] = []
+    dirty_repo_infos: list[tuple[str, RepoInfo, str, Path]] = []
 
     for name, repo_info in project_spec.repos.items():
         module_path = get_module_path(workdir, name, repo_info)
@@ -75,82 +74,128 @@ async def gather_dirty_repo_info(project_spec: ProjectSpec) -> list[RepoInfo]:
     return dirty_repo_infos
 
 
-async def reset_dirty_repos(project_spec: ProjectSpec, dirty_repo_infos: list[RepoInfo]) -> bool:
-    dirty_found = len(dirty_repo_infos)
-    cleaned = 0
-    skipped = 0
-    failed = 0
+async def show_diffs(project_spec: ProjectSpec):
+    dirty_repo_infos = await gather_dirty_repo_info(project_spec)
+    for name, _, _, module_path in dirty_repo_infos:
+        ret, out, err = await run_git("diff", cwd=module_path)
+        if out:
+            console.print(f"[bold cyan]Diff for {name} at {module_path}:[/]")
+            console.print(out)
+        ret, out, err = await run_git("diff", "--cached", cwd=module_path)
+        if out:
+            console.print(f"[bold cyan]Staged diff for {name} at {module_path}:[/]")
+            console.print(out)
 
+
+async def handle_dirty_repos(project_spec: ProjectSpec, dry_run: bool) -> int:
+    """Check for dirty repositories and offer to reset them.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    dirty_repo_infos = await gather_dirty_repo_info(project_spec)
     for name, repo_info, output, module_path in dirty_repo_infos:
         console.print(f"[yellow]Repo is dirty:[/] [cyan]{name}[/] at {module_path}")
         console.print(format_diff(output))
 
-        answer = input(f"Clean repo {name} at {module_path} with 'git reset --hard'? [y/N]: ").strip().lower()
-        if answer != "y":
-            console.print(f"[cyan]Skipped dirty repo:[/] {name} at {module_path}")
-            skipped += 1
+    if not dirty_repo_infos:
+        console.print("[cyan]No dirty repositories.[/]")
+        return 0
+
+    if dry_run:
+        console.print("[cyan]Would reset dirty repositories.[/]")
+        return 0
+
+    console.print("[bold red]Warning: there are dirty repositories![/]")
+    answer = input("Reset dirty repositories? [y/N]: ").strip().lower()
+    if answer != "y":
+        console.print("[cyan]Aborted.[/]")
+        return 1
+
+    failed = False
+    for name, repo_info, output, module_path in dirty_repo_infos:
+        console.print(f"[yellow]Reset:[/] {name}")
+        ret, out, err = await reset_repo(module_path)
+        if ret != 0:
+            console.print(f"[red]Failed to reset {name}:[/] {err}")
+            failed = True
+
+    return 1 if failed else 0
+
+
+async def handle_unlink(workdir: Path, dry_run: bool) -> int:
+    """Remove links folder contents.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    links_path = workdir / "links"
+    if not links_path.exists():
+        return 0
+
+    children = sorted(links_path.iterdir())
+    if dry_run:
+        for child in children:
+            console.print(f"[cyan]Would unlink:[/] {child}")
+        return 0
+
+    failed = False
+    for child in children:
+        ret, err = await unlink_path(child)
+        if ret != 0:
+            console.print(f"[red]Failed to unlink {child}:[/] {err}")
+            failed = True
+
+    return 1 if failed else 0
+
+
+async def handle_remove(workdir: Path, force: bool, dry_run: bool) -> int:
+    """Delete src and external-src directories.
+
+    Returns 1 if failed, 0 otherwise.
+    """
+    targets = [workdir / "src", workdir / "external-src"]
+    failed = False
+
+    for target in targets:
+        if dry_run:
+            if target.exists():
+                console.print(f"[cyan]Would delete:[/] {target}")
             continue
 
-        while True:
-            ret, out, err = await reset_repo(module_path)
+        deletion_failed = _clean_directory(target, force)
+        if deletion_failed:
+            failed = True
 
-            if ret != 1:
-                break
-
-            git_index = module_path / ".git" / "index.lock"
-            if not git_index.exists():
-                failed += 1
-                console.print("[red]Failed to cleanup index.lock")
-                break
-
-            answer = input(f"Remove index lock at {git_index} ? [y/N]").strip().lower()
-            if answer != "y":
-                break
-            git_index.unlink()
-
-        console.print(f"[cyan]Cleaned repo with 'git reset --hard':[/] {name} at {module_path}")
-        cleaned += 1
-
-    if dirty_found:
-        console.print(
-            f"[bold]Dirty repos:[/] found={dirty_found}, cleaned={cleaned}, skipped={skipped}, failed={failed}"
-        )
-
-    return failed
+    return 1 if failed else 0
 
 
-async def _clean_dirty_repos(project_spec: ProjectSpec) -> bool:
-    """Interactively clean dirty git repositories with `git reset --hard`.
-
-    Returns True if any repo cleaning failed, False otherwise.
-    """
-    dirty_repo_infos = await gather_dirty_repo_info(project_spec)
-
-    return await reset_dirty_repos(project_spec, dirty_repo_infos)
-
-
-def clean_project(
+async def clean_project(
     project_spec: ProjectSpec,
-    non_interactive: bool = False,
-    clean_dirty_repos: bool = False,
+    remove: bool = False,
+    unlink: bool = False,
+    force: bool = False,
+    dry_run: bool = False,
 ) -> int:
     """Clean src and external-src directories under the project workdir.
 
-    Optionally, also scan all repos for dirty state and offer to reset them.
+    Behavior depends on flags:
+    - No flags: Check dirty repositories and offer to reset them
+    - remove: Delete src and external-src directories
+    - unlink: Remove links folder contents
+    - dry_run: Show what would be done without executing
     """
     workdir = project_spec.workdir
     failed = False
 
-    targets = [workdir / "src", workdir / "external-src"]
-
-    if clean_dirty_repos:
-        dirty_failed = asyncio.run(_clean_dirty_repos(project_spec))
-        if dirty_failed:
+    if not remove and not unlink:
+        if await handle_dirty_repos(project_spec, dry_run):
             failed = True
-    else:
-        for target in targets:
-            deletion_failed = _clean_directory(target, non_interactive)
-            if deletion_failed:
-                failed = True
+
+    if unlink:
+        if await handle_unlink(workdir, dry_run):
+            failed = True
+
+    if remove:
+        if await handle_remove(workdir, force, dry_run):
+            failed = True
 
     return 1 if failed else 0
