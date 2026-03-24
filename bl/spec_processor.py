@@ -355,7 +355,7 @@ class RepoProcessor:
             f"Can't find base branch {refspec}",
         )
 
-    async def setup_main_branch(self, module_path: Path) -> int:
+    async def setup_main_branch(self, module_path: Path) -> tuple[int, str, str]:
         base_refspec = self.repo_info.refspec_info[0]
         ret, out, err = await self.checkout_or_create_base_branch(base_refspec, module_path)
         if ret != 0:
