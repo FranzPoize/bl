@@ -86,6 +86,12 @@ def clone_info_from_repo(name: str, repo_info: RepoInfo):
 
 
 def parse_fetch_output(output: str) -> List[Dict]:
+    """Parse a fetch output
+    a fetch output is of the following form
+    <tag> <old_hash> <new_hash> <updated_ref>
+    if tag is a space (for fast-forward fetch) the line splits in 5 elements
+    otherwise it splits in 4
+    """
     results = []
     if not output:
         return results

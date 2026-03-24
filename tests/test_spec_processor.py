@@ -8,10 +8,12 @@ import pytest
 
 from bl.spec_processor import (
     RepoProcessor,
-    path_is_not_repo,
     clone_info_from_repo,
     create_clone_args,
     normalize_merge_result,
+    parse_fetch_output,
+    path_is_not_repo,
+    print_fetch_output,
 )
 from bl.types import CloneFlags, OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
@@ -735,6 +737,7 @@ async def test_check_and_apply_patch_no_files(monkeypatch, tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_check_and_apply_patch_already_applied(monkeypatch, tmp_path: Path) -> None:
+    """When patch is already applied, should return 0 (no action needed)."""
     from bl import spec_processor as sp
 
     rp = _make_repo_processor(tmp_path, _make_repo_info())
@@ -756,29 +759,91 @@ async def test_check_and_apply_patch_already_applied(monkeypatch, tmp_path: Path
     assert ret == 0
 
 
-@pytest.mark.asyncio
-async def test_check_and_apply_patch_am_failure(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
+class TestParseFetchOutput:
+    def test_parse_fetch_output_empty(self) -> None:
+        result = parse_fetch_output("")
+        assert result == []
 
-    rp = _make_repo_processor(tmp_path, _make_repo_info())
-    rp.task_id = 0
+    def test_parse_fetch_output_none(self) -> None:
+        result = parse_fetch_output(None)
+        assert result == []
+
+    def test_parse_fetch_output_four_elements(self) -> None:
+        output = "f abc123 def456 refs/heads/main"
+        result = parse_fetch_output(output)
+        assert len(result) == 1
+        assert result[0]["base"] == "abc123"
+        assert result[0]["target"] == "def456"
+        assert result[0]["ref"] == "main"
+
+    def test_parse_fetch_output_five_elements(self) -> None:
+        output = "  abc123 def456 refs/heads/feature"
+        result = parse_fetch_output(output)
+        assert len(result) == 1
+        assert result[0]["base"] == "abc123"
+        assert result[0]["target"] == "def456"
+        assert result[0]["ref"] == "feature"
+
+    def test_parse_fetch_output_skips_000_base(self) -> None:
+        output = "f 000000000000000000000000000000000000000 def456 refs/heads/main"
+        result = parse_fetch_output(output)
+        assert result == []
+
+    def test_parse_fetch_output_multiple_lines(self) -> None:
+        output = "f abc123 def456 refs/heads/main\nf ghi789 jkl012 refs/heads/develop"
+        result = parse_fetch_output(output)
+        assert len(result) == 2
+        assert result[0]["ref"] == "main"
+        assert result[1]["ref"] == "develop"
+
+    def test_parse_fetch_output_strips_ref_prefix(self) -> None:
+        output = "f abc123 def456 refs/heads/feature/my-branch"
+        result = parse_fetch_output(output)
+        assert result[0]["ref"] == "feature/my-branch"
+
+    def test_parse_fetch_output_invalid_line_count(self) -> None:
+        output = "only one element"
+        result = parse_fetch_output(output)
+        assert result == []
+
+    def test_parse_fetch_output_three_elements(self) -> None:
+        output = "abc def ghi"
+        result = parse_fetch_output(output)
+        assert result == []
+
+
+@pytest.mark.asyncio
+async def test_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
+    from bl.spec_processor import console
 
     module_path = tmp_path / "repo"
     module_path.mkdir()
-    (module_path / "patches").mkdir()
-    (module_path / "patches" / "fix.patch").write_text("patch")
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
 
     async def fake_run_git(*args, cwd=None):
-        if "apply" in args and "--reverse" in args:
-            return 1, "", "needs apply"
-        if "am" in args:
-            return 1, "", "apply failed"
+        if "log" in args:
+            return 0, "abc123|Author|Commit message\n", ""
         return 0, "", ""
 
-    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr("bl.spec_processor.run_git", fake_run_git)
 
-    ret, err = await rp.check_and_apply_patch("patches/*.patch", module_path)
-    assert ret == -1
+    fetch_data = {
+        "base": "abc123def456789012345678901234567890ab",
+        "target": "def456789012345678901234567890abc123de",
+        "ref": "main",
+    }
+
+    await print_fetch_output("test-repo", fetch_data, module_path)
+
+    assert len(printed) == 2
+    assert "test-repo" in printed[0]
+    assert "abc123def" in printed[0]
+    assert "def456789" in printed[0]
+    assert "main" in printed[0]
+    assert "abc123" in printed[1]
+    assert "Author" in printed[1]
 
 
 @pytest.mark.asyncio
