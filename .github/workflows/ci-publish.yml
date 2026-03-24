@@ -67,11 +67,11 @@ jobs:
           git config --global user.email "ci@example.com"
 
       - name: Run bl build
-        run: bl build -c abilis-spec.yaml -z abilis-frz.yml --log-level=DEBUG -j 1
+        run: bl build -c ci-spec.yaml -z ci-frz.yml --log-level=DEBUG -j 1
         working-directory: benchmark/bl_benchmark/
 
       - name: Run ak build and sparse
-        run: ak build -c abilis-spec.yaml -f abilis-frz.yml && ak sparse -c abilis-spec.yaml
+        run: ak build -c ci-spec.yaml -f ci-frz.yml && ak sparse -c ci-spec.yaml
         working-directory: benchmark/ak_benchmark/
 
       - name: Compare results

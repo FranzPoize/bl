@@ -623,6 +623,7 @@ class RepoProcessor:
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
                     ret, out, err = await self.fetch_multi(remote, refspec_list, module_path)
+                await run_git("checkout", current_branch, cwd=module_path)
             else:
                 self.progress.update(self.task_id, status=f"Pulling shallow ")
                 # We need to pull the main branch shallow
@@ -632,12 +633,13 @@ class RepoProcessor:
                     "--depth",
                     "1",
                     refspec_info.remote,
-                    f"{refspec_info.refspec}:{refspec_info.refspec}",
+                    f"{refspec_info.refspec}",
                     cwd=module_path,
                 )
+                await run_git("checkout", current_branch, cwd=module_path)
+                await run_git("reset", "--hard", f"{refspec_info.remote}/{refspec_info.refspec}", cwd=module_path)
 
             # HACK(franz): This is weird but it works
-            await run_git("checkout", current_branch, cwd=module_path)
             await run_git("branch", "-D", "temp", cwd=module_path)
 
             if ret != 0:

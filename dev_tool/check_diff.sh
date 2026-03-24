@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+DIFF_FOUND=0
+
 set -e
 
 if [ "$#" -ne 2 ]; then
@@ -33,6 +35,7 @@ for dir in $common_dirs; do
 
     if [ "$md51" != "$md52" ]; then
         echo "Directory differs: $dir"
+        DIFF_FOUND=1
 
         # Get relative file lists
         files1=$(cd "$PATH1/$dir" && find . -type f -name "*.py" | sort)
@@ -69,4 +72,8 @@ for dir in $common_dirs; do
         echo "----------------------------------------"
     fi
 done
+
+if [ "$DIFF_FOUND" -ne 0 ]; then
+    exit 1
+fi
 
