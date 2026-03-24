@@ -5,7 +5,7 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-from bl.types import OriginType, RefspecInfo, RepoInfo
+from bl.types import RefspecInfo, RepoInfo
 
 english_env = os.environ.copy()
 # Ensure git outputs in English for consistent parsing

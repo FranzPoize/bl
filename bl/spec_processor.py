@@ -77,6 +77,33 @@ def clone_info_from_repo(name: str, repo_info: RepoInfo):
     )
 
 
+def parse_fetch_output(output: str) -> List[Dict]:
+    results = []
+    if not output:
+        return results
+
+    lines = output.split("\n")
+    for line in lines:
+        content = line.split(" ")
+        if len(content) == 5:
+            _, _, base, target, ref = tuple(line.split(" "))
+        elif len(content) == 4:
+            _, base, target, ref = tuple(line.split(" "))
+        else:
+            continue
+
+        if len(content) > 1 and base[:3] != "000":
+            results.append(
+                {
+                    "base": base,
+                    "target": target,
+                    "ref": "/".join(ref.split("/")[2:]),
+                }
+            )
+
+    return results
+
+
 # for single branch we should clone shallow but for other we should clone deep
 # this allows us to get merge-base to work and git can then merge by pulling the minimum
 # amount of data
@@ -126,6 +153,25 @@ def normalize_merge_result(ret: int, out: str, err: str):
         return -1, out
 
     return ret, err
+
+
+async def print_fetch_output(name, fetch_data, module_path):
+    ref = fetch_data["ref"]
+    base = fetch_data["base"]
+    target = fetch_data["target"]
+    console.print(
+        f"[deep_sky_blue3]{name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
+        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]"
+    )
+    # TODO(franz) if the difference is not fast forwardable it needs to be ... instead of ..
+    log_ret, log_out, log_err = await run_git(
+        "log", "--pretty", "--format=%h|(%an)| %s", f"{base}..{target}", cwd=module_path
+    )
+    log_lines = log_out.split("\n")[:-1]
+
+    for log in log_lines:
+        hash, author, message = tuple(log.split("|"))
+        console.print(f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}")
 
 
 class RepoProcessor:
@@ -419,31 +465,8 @@ class RepoProcessor:
 
         ret, out, err = await run_git(*args, cwd=module_path)
 
-        # TODO(franz): please clean this up
-        if out != "":
-            lines = out.split("\n")
-            for line in lines:
-                content = line.split(" ")
-                if len(content) == 5:
-                    _, _, base, target, ref = tuple(line.split(" "))
-                elif len(content) == 4:
-                    _, base, target, ref = tuple(line.split(" "))
-
-                if len(content) > 1 and base[:3] != "000":
-                    ref = "/".join(ref.split("/")[2:])
-                    console.print(
-                        f"[deep_sky_blue3]{self.name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1] to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]"
-                    )
-                    ret, out, err = await run_git(
-                        "log", "--pretty", "--format=%h|(%an)| %s", f"{base}..{target}", cwd=module_path
-                    )
-                    log_lines = out.split("\n")[:-1]
-
-                    for log in log_lines:
-                        hash, author, message = tuple(log.split("|"))
-                        console.print(
-                            f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}"
-                        )
+        for parsed in parse_fetch_output(out):
+            await print_fetch_output(self.name, parsed, module_path)
 
         return ret, out, err
 
@@ -625,7 +648,7 @@ class RepoProcessor:
                     ret, out, err = await self.fetch_multi(remote, refspec_list, module_path)
                 await run_git("checkout", current_branch, cwd=module_path)
             else:
-                self.progress.update(self.task_id, status=f"Pulling shallow ")
+                self.progress.update(self.task_id, status=f"Pulling shallow {self.name}")
                 # We need to pull the main branch shallow
                 refspec_info = self.repo_info.refspec_info[0]
                 ret, out, err = await run_git(
@@ -636,6 +659,9 @@ class RepoProcessor:
                     f"{refspec_info.refspec}",
                     cwd=module_path,
                 )
+                # TODO(franz): this needs to be able to print non fast forward difference
+                # for parsed in parse_fetch_output(out):
+                #     await print_fetch_output(self.name, parsed, module_path)
                 await run_git("checkout", current_branch, cwd=module_path)
                 await run_git("reset", "--hard", f"{refspec_info.remote}/{refspec_info.refspec}", cwd=module_path)
 

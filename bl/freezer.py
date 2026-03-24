@@ -1,11 +1,12 @@
 import asyncio
-import yaml
 from pathlib import Path
 
+import yaml
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
-from bl.types import RepoInfo, ProjectSpec
+
+from bl.types import ProjectSpec, RepoInfo
 from bl.utils import get_local_ref, get_module_path, run_git
 
 console = Console()
