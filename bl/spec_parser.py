@@ -119,8 +119,21 @@ def load_spec_file(
     """
     Loads and parses the project specification from a YAML file.
 
+    Reads the main config YAML, applies any override files on top of it,
+    loads frozen commit references, and constructs a ProjectSpec containing
+    all parsed repository definitions.
+
+    If the config file is not found at the given path and is relative,
+    a fallback lookup inside an ``odoo/`` subdirectory is attempted.
+
     Args:
-        file_path: The path to the YAML specification file.
+        config: Path to the main YAML specification file.
+        frozen: Path to the frozen YAML file that pins specific commits.
+            Falls back to a ``frozen.yaml`` next to the config file when not provided.
+        workdir: Working directory for the project. Falls back to the
+            config file's parent directory when not provided.
+        overrides: Optional list of paths to override YAML files that are
+            merged on top of the base configuration in order.
 
     Returns:
         A ProjectSpec object if successful, None otherwise.
