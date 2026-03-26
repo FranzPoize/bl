@@ -614,7 +614,7 @@ class RepoProcessor:
             path_empty = not module_path.exists() or len(os.listdir(module_path)) == 0
             repo_exists = path_is_repo(module_path)
             # ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
-            if not path_exists or path_empty:
+            if (not path_exists or path_empty) and not repo_exists:
                 clone_info = clone_info_from_repo(self.name, self.repo_info)
                 ret, err = await self.setup_new_repo(clone_info, module_path)
             elif repo_exists:

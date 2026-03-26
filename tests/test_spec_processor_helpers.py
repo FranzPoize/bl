@@ -6,7 +6,7 @@ from bl.spec_processor import (
     clone_info_from_repo,
     create_clone_args,
     normalize_merge_result,
-    path_is_not_repo,
+    path_is_repo,
 )
 from bl.types import CloneFlags, OriginType
 from tests.conftest import _make_ref, _make_repo_info
@@ -14,15 +14,21 @@ from tests.conftest import _make_ref, _make_repo_info
 
 def test_check_path_is_repo(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
-    assert path_is_not_repo(missing) is True
+    assert path_is_repo(missing) is False
 
     file_path = tmp_path / "file.txt"
     file_path.write_text("content")
-    assert path_is_not_repo(file_path) is True
+    assert path_is_repo(file_path) is False
 
     dir_path = tmp_path / "dir"
     dir_path.mkdir()
-    assert path_is_not_repo(dir_path) is False
+    assert path_is_repo(dir_path) is False
+
+    dir_path = tmp_path / "dir2"
+    dir_path.mkdir()
+    git_path = dir_path / ".git"
+    git_path.mkdir()
+    assert path_is_repo(dir_path) is True
 
 
 def test_clone_info_from_repo_flags_variants() -> None:

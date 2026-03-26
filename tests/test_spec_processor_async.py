@@ -680,8 +680,9 @@ async def test_setup_merged_branch_create_new(monkeypatch, tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_link_all_modules_bindfs_failure(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
     import logging
+
+    from bl import spec_processor as sp
 
     rp = _make_repo_processor(tmp_path, _make_repo_info())
     rp.task_id = 0
@@ -872,7 +873,7 @@ async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> Non
         return 0, "", ""
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
-    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+    monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
 
     ret = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -954,7 +955,7 @@ async def test_process_repo_with_cloning_and_temp_branch(monkeypatch, tmp_path: 
         return 0, "", ""
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
-    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+    monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
 
     ret = await rp.process_repo(module_path, ["mod1"], ["mod1"])
     assert ret == 0 or ret is None
@@ -1009,7 +1010,7 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
         return 0, "", ""
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
-    monkeypatch.setattr(sp, "path_is_not_repo", lambda x: False)
+    monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
 
     ret = await rp.process_repo(module_path, [], [])
     assert ret == -1

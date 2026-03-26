@@ -116,10 +116,10 @@ async def test_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
 
     await print_fetch_output("test-repo", fetch_data, module_path)
 
-    assert len(printed) == 2
+    assert len(printed) == 1
     assert "test-repo" in printed[0]
     assert "abc123def" in printed[0]
     assert "def456789" in printed[0]
     assert "main" in printed[0]
-    assert "abc123" in printed[1]
-    assert "Author" in printed[1]
+    assert "abc123" in printed[0]
+    assert "Author" in printed[0]
