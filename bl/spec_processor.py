@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import warnings
+from os.path import exists
 from pathlib import Path
 from typing import Dict, List
 
@@ -67,9 +68,10 @@ warnings.showwarning = rich_warning
 warnings.simplefilter("default", DeprecationWarning)
 
 
-def path_is_not_repo(module_path: Path):
+def path_is_repo(module_path: Path):
     # TODO(franz): add check for .git folder
-    return not module_path.exists() or not module_path.is_dir()
+    git_folder = module_path / ".git"
+    return module_path.exists() and module_path.is_dir() and git_folder.exists()
 
 
 def clone_info_from_repo(name: str, repo_info: RepoInfo):
@@ -173,9 +175,9 @@ async def print_fetch_output(name, fetch_data, module_path):
     ref = fetch_data["ref"]
     base = fetch_data["base"]
     target = fetch_data["target"]
-    console.print(
+    fetch_output = (
         f"[deep_sky_blue3]{name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
-        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]"
+        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]\n"
     )
     # TODO(franz) if the difference is not fast forwardable it needs to be ... instead of ..
     log_ret, log_out, log_err = await run_git(
@@ -185,7 +187,9 @@ async def print_fetch_output(name, fetch_data, module_path):
 
     for log in log_lines:
         hash, author, message = tuple(log.split("|"))
-        console.print(f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}")
+        fetch_output += f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}\n"
+
+    console.print(fetch_output)
 
 
 class RepoProcessor:
@@ -606,13 +610,18 @@ class RepoProcessor:
                 self.task_id,
                 status=("Setting up repo ..."),
             )
-            repo_need_cloning = path_is_not_repo(module_path)
+            path_exists = module_path.exists()
+            path_empty = not module_path.exists() or len(os.listdir(module_path)) == 0
+            repo_exists = path_is_repo(module_path)
             # ret = await self.clone_or_reset_and_setup_repo(module_path, symlink_modules)
-            if repo_need_cloning:
+            if not path_exists or path_empty:
                 clone_info = clone_info_from_repo(self.name, self.repo_info)
                 ret, err = await self.setup_new_repo(clone_info, module_path)
-            else:
+            elif repo_exists:
                 ret, err = await self.reset_repo_for_work(module_path)
+            elif path_exists and not path_empty:
+                self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
+                return -1
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
