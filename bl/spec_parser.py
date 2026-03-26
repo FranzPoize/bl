@@ -113,7 +113,9 @@ def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> None:
             base[key] = override_value
 
 
-def load_spec_file(config: Path, frozen: Path, workdir: Path, override: Path | None = None) -> Optional[ProjectSpec]:
+def load_spec_file(
+    config: Path, frozen: Path, workdir: Path, overrides: list[Path] | None = None
+) -> Optional[ProjectSpec]:
     """
     Loads and parses the project specification from a YAML file.
 
@@ -146,7 +148,10 @@ def load_spec_file(config: Path, frozen: Path, workdir: Path, override: Path | N
             print(f"Error parsing YAML file '{config}': {e}")
             return None
 
-    if override and override.exists():
+    for override in overrides or []:
+        if not override.exists():
+            print(f"Override file '{override}' does not exist. Skipping.")
+            continue
         try:
             with override.open("r") as override_file:
                 override_data = yaml.safe_load(override_file) or {}
