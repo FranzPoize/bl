@@ -109,10 +109,59 @@ class TestLoadSpecFileWithOverride:
             )
         )
 
-        project = load_spec_file(base_config, None, tmp_path, override_config)
+        project = load_spec_file(base_config, None, tmp_path, [override_config])
         assert project is not None
         repo_info = project.repos["test-repo"]
         assert "mod3" in repo_info.modules
+
+    def test_load_spec_file_with_multiple_overrides(self, tmp_path: Path) -> None:
+        base_config = tmp_path / "spec.yaml"
+        override_config = tmp_path / "override.yaml"
+        override_config_2 = tmp_path / "override2.yaml"
+        override_config_3 = tmp_path / "override3.yaml"
+
+        base_config.write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["mod1", "mod2"],
+                        "remotes": {"origin": "https://example.com/repo.git"},
+                        "merges": ["origin main"],
+                    }
+                }
+            )
+        )
+
+        override_config.write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["mod3", "..."],
+                    }
+                }
+            )
+        )
+
+        override_config_2.write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["...", "mod4"],
+                    }
+                }
+            )
+        )
+
+        project = load_spec_file(
+            base_config,
+            None,
+            tmp_path,
+            [override_config, override_config_2, override_config_3],
+        )
+        assert project is not None
+        repo_info = project.repos["test-repo"]
+        assert "mod3" in repo_info.modules
+        assert "mod4" in repo_info.modules
 
     def test_load_spec_file_without_override(self, tmp_path: Path) -> None:
         config = tmp_path / "spec.yaml"
@@ -161,7 +210,7 @@ class TestLoadSpecFileWithOverride:
             )
         )
 
-        project = load_spec_file(base_config, None, tmp_path, override_config)
+        project = load_spec_file(base_config, None, tmp_path, [override_config])
         assert project is not None
         assert "existing-repo" in project.repos
         assert "new-repo" in project.repos
@@ -293,7 +342,7 @@ class TestLoadSpecFileErrors:
         )
         override = tmp_path / "override.yaml"
         override.write_text("invalid: yaml: content:")
-        project = load_spec_file(config, None, tmp_path, override)
+        project = load_spec_file(config, None, tmp_path, [override])
         assert project is not None
 
     def test_load_spec_file_frozen_yaml_error(self, tmp_path: Path) -> None:

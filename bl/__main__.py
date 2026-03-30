@@ -84,7 +84,9 @@ def run():
         "-o",
         "--config-override",
         type=Path,
-        help="Path to an override config to extend the project specification.",
+        action="append",
+        help="Path to an override config to extend the project specification. "
+        "Can be used multiple times, applied in order.",
     )
     parent_parser.add_argument("-j", "--concurrency", type=int, default=28, help="Number of concurrent tasks.")
     parent_parser.add_argument(
