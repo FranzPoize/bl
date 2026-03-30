@@ -6,6 +6,7 @@ authors = [
   { name="Your Name", email="your.email@example.com" },
 ]
 dependencies = [
+    "copier",
     "pyyaml>=6.0.3",
     "rich",
     "typer",

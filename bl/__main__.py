@@ -9,6 +9,8 @@ from pathlib import Path
 
 from rich.console import Console
 
+from copier import run_copy
+
 from bl.clean_project import clean_project, show_diffs
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
@@ -108,6 +110,8 @@ def run():
     sub.add_parser("build", parents=[parent_parser], help="build help")
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
+    init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
+    init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
     clean_parser.add_argument(
         "--remove",
@@ -134,6 +138,10 @@ def run():
 
     level_name = args.log_level
     setup_logging(level_name)
+
+    if args.command == "init":
+        run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
+        sys.exit(0)
 
     project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
     if project_spec is None:
