@@ -23,6 +23,11 @@ class CloneFlags(IntEnum):
     SPARSE = 2
 
 
+class SparseCheckoutFlags(Enum):
+    CONE = "--cone"
+    NO_CONE = "--no-cone"
+
+
 class RefspecInfo:
     """A git refspec with its remote, type and optional frozen sha."""
 

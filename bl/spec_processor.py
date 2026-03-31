@@ -11,7 +11,7 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo
+from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
     english_env,
     format_diff,
@@ -76,7 +76,7 @@ def path_is_repo(module_path: Path):
 
 def clone_info_from_repo(name: str, repo_info: RepoInfo):
     flags = CloneFlags.SHALLOW if name == "odoo" or len(repo_info.refspec_info) == 1 else 0
-    flags |= CloneFlags.SPARSE if name != "odoo" or len(repo_info.locales) > 0 else 0
+    flags |= CloneFlags.SPARSE
     root_refspec_info = repo_info.refspec_info[0]
     remote_url = repo_info.remotes.get(root_refspec_info.remote)
 
@@ -517,33 +517,35 @@ class RepoProcessor:
 
         return result
 
-    async def setup_odoo_sparse(self, module_spec: RepoInfo, module_path: Path):
-        list_modules = module_spec.modules
-
-        await run_git("sparse-checkout", "init", "--no-cone", cwd=module_path)
-        included_po = [f"{locale}.po" for locale in module_spec.locales]
-        included_modules = [f"/addons/{module}/*" for module in list_modules]
-        await run_git(
-            "sparse-checkout",
-            "set",
-            "/*",
-            "!/addons/*",
-            *included_modules,
-            "!*.po",
-            *included_po,
-            cwd=module_path,
-        )
+    def make_sparse_parameters(self, modules: List[str]) -> tuple[SparseCheckoutFlags, List[str]]:
+        if len(self.repo_info.locales) > 0 and self.name == "odoo":
+            included_po = [f"{locale}.po" for locale in self.repo_info.locales]
+            # TODO(franz) included po only in included modules
+            modules_paths = [Path("/addons") / module for module in modules]
+            included_paths = []
+            for module in modules_paths:
+                included_paths += [f"{str(module)}/*", f"!{str(module)}/*/*.po"]
+                for po in included_po:
+                    included_paths += [f"{str(module)}/*/{po}"]
+            return SparseCheckoutFlags.NO_CONE, ["/*", "!/addons/*", *included_paths]
+        elif self.name == "odoo":
+            if len(modules) > 0:
+                odoo_sparse_list = [str(Path("addons") / module) for module in self.repo_info.modules]
+            else:
+                odoo_sparse_list = ["addons"]
+            odoo_sparse_list += [
+                "debian",
+                "doc",
+                "odoo",
+                "setup",
+            ]
+            return SparseCheckoutFlags.CONE, odoo_sparse_list
+        else:
+            return SparseCheckoutFlags.CONE, modules
 
     async def setup_sparse_checkout(self, symlink_modules: List[str], module_path: Path):
-        # 2. Sparse Checkout setup
-        if self.name != "odoo":
-            self.progress.update(self.task_id, status="Configuring sparse checkout...")
-            if symlink_modules:
-                await run_git("sparse-checkout", "set", *self.repo_info.modules, cwd=module_path)
-        elif len(self.repo_info.locales) > 0:
-            # TODO(franz): We should still set sparse if there is no locales but there is a module list
-            self.progress.update(self.task_id, status="Configuring sparse odoo checkout...")
-            await self.setup_odoo_sparse(self.repo_info, module_path)
+        sparse_mode, sparse_list = self.make_sparse_parameters(symlink_modules)
+        await run_git("sparse-checkout", "set", sparse_mode.value, *sparse_list, cwd=module_path)
 
     def count_step(self):
         # steps are:

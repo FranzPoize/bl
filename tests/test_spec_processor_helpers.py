@@ -52,7 +52,7 @@ def test_clone_info_from_repo_flags_variants() -> None:
     )
     ci = clone_info_from_repo("odoo", repo_info)
     assert ci.clone_flags & CloneFlags.SHALLOW
-    assert ci.clone_flags & CloneFlags.SPARSE == 0
+    assert ci.clone_flags & CloneFlags.SPARSE
 
     refspecs = [_make_ref("origin", "main")]
     repo_info = _make_repo_info(
