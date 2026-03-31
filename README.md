@@ -97,6 +97,18 @@ By default it scans all repos in the spec for dirty git state and resets them wi
 * `--force` remove confirmation prompts
 * `--dry-run` just output what it would do
 
+### Init
+
+```bash
+bl init [DESTINATION]
+```
+
+#### What does it do
+Initializes a new project from the [docky-odoo-template-shared](https://github.com/akretion/docky-odoo-template-shared) template using [Copier](https://copier.readthedocs.io/).
+
+#### Params
+* `DESTINATION` destination directory (default: current directory)
+
 ## Odoo is taking a really long time to clone
 
 Yes !
