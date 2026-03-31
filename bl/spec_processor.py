@@ -544,6 +544,7 @@ class RepoProcessor:
             return SparseCheckoutFlags.CONE, modules
 
     async def setup_sparse_checkout(self, symlink_modules: List[str], module_path: Path):
+        self.progress.update(self.task_id, status="Configuring sparse checkout...")
         sparse_mode, sparse_list = self.make_sparse_parameters(symlink_modules)
         await run_git("sparse-checkout", "set", sparse_mode.value, *sparse_list, cwd=module_path)
 
