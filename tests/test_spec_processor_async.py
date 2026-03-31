@@ -145,6 +145,25 @@ async def test_setup_sparse_checkout_and_odoo(monkeypatch, tmp_path: Path) -> No
         for call in seen_calls
     )
 
+    odoo_path.rmdir()
+
+    seen_calls.clear()
+
+    odoo_repo_no_modules = _make_repo_info()
+    rp_odoo_no_modules = _make_repo_processor(tmp_path, odoo_repo_no_modules)
+    rp_odoo_no_modules.name = "odoo"
+    rp_odoo_no_modules.task_id = 0
+    odoo_path_no_modules = tmp_path / "odoo"
+    odoo_path_no_modules.mkdir()
+
+    await rp_odoo_no_modules.setup_sparse_checkout([], odoo_path_no_modules)
+
+    assert any(
+        call[0][0:3] == ("sparse-checkout", "set", "--cone")
+        and set(call[0][3:]) == {"addons", "debian", "doc", "odoo", "setup"}
+        for call in seen_calls
+    )
+
 
 @pytest.mark.asyncio
 async def test_setup_new_repo_clone_failure(monkeypatch, tmp_path: Path) -> None:
