@@ -97,7 +97,10 @@ async def test_setup_sparse_checkout_and_odoo(monkeypatch, tmp_path: Path) -> No
 
     await rp_non_odoo.setup_sparse_checkout(["m1", "m2"], module_path)
     assert any(
-        call[0][0] == "sparse-checkout" and call[0][1] == "set" and set(call[0][2:]) == {"m1", "m2"}
+        call[0][0] == "sparse-checkout"
+        and call[0][1] == "set"
+        and call[0][2] == "--cone"
+        and set(call[0][3:]) == {"m1", "m2"}
         for call in seen_calls
     )
 
@@ -112,15 +115,33 @@ async def test_setup_sparse_checkout_and_odoo(monkeypatch, tmp_path: Path) -> No
 
     await rp_odoo.setup_sparse_checkout(["mod1"], odoo_path)
 
-    assert any(call[0][0:3] == ("sparse-checkout", "init", "--no-cone") for call in seen_calls)
     assert any(
-        call[0][0:2] == ("sparse-checkout", "set")
+        call[0][0:3] == ("sparse-checkout", "set", "--no-cone")
         and "/*" in call[0]
         and "!/addons/*" in call[0]
         and "/addons/mod1/*" in call[0]
-        and "!*.po" in call[0]
-        and "fr_FR.po" in call[0]
-        and "en_US.po" in call[0]
+        and "!/addons/mod1/*/*.po" in call[0]
+        and "/addons/mod1/*/fr_FR.po" in call[0]
+        and "/addons/mod1/*/en_US.po" in call[0]
+        for call in seen_calls
+    )
+
+    odoo_path.rmdir()
+
+    seen_calls.clear()
+
+    odoo_repo_no_locales = _make_repo_info(modules=["mod1"])
+    rp_odoo_no_locales = _make_repo_processor(tmp_path, odoo_repo_no_locales)
+    rp_odoo_no_locales.name = "odoo"
+    rp_odoo_no_locales.task_id = 0
+    odoo_path_no_locales = tmp_path / "odoo"
+    odoo_path_no_locales.mkdir()
+
+    await rp_odoo_no_locales.setup_sparse_checkout(["mod1"], odoo_path_no_locales)
+
+    assert any(
+        call[0][0:3] == ("sparse-checkout", "set", "--cone")
+        and set(call[0][3:]) == {"addons/mod1", "debian", "doc", "odoo", "setup"}
         for call in seen_calls
     )
 
@@ -877,30 +898,6 @@ async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> Non
 
     ret = await rp.process_repo(module_path, [], [])
     assert ret == -1
-
-
-@pytest.mark.asyncio
-async def test_setup_sparse_checkout_odoo_with_locales(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
-
-    repo_info = _make_repo_info(modules=["mod1"], locales=["fr_FR"])
-    rp = _make_repo_processor(tmp_path, repo_info)
-    rp.name = "odoo"
-    rp.task_id = 0
-    module_path = tmp_path / "odoo"
-    module_path.mkdir()
-
-    calls = []
-
-    async def fake_run_git(*args, cwd=None):
-        calls.append(args)
-        return 0, "", ""
-
-    monkeypatch.setattr(sp, "run_git", fake_run_git)
-
-    await rp.setup_sparse_checkout(["mod1"], module_path)
-
-    assert any(c[0:3] == ("sparse-checkout", "init", "--no-cone") for c in calls)
 
 
 @pytest.mark.asyncio
