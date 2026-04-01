@@ -592,6 +592,8 @@ class RepoProcessor:
         symlink_modules: list[Path],
         git_modules: list[str],
     ) -> int:
+        # TODO(franz): return a proper error code with data so that we can do something we it
+        # like reset the repo or remove an unexisting branch from the spec
         count_step = self.count_step()
         self.task_id = self.progress.add_task(
             f"[cyan]{self.name}",
@@ -628,6 +630,9 @@ class RepoProcessor:
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
+                ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
+                if ret != 0:
+                    self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
                 return -1
 
             ret, err = await self.check_main_remote(module_path)
