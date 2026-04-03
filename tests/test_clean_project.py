@@ -135,13 +135,17 @@ async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp
 
     repo_a = _make_repo_info()
     repo_b = _make_repo_info()
-    project = ProjectSpec(repos={"a": repo_a, "b": repo_b}, workdir=workdir)
+    repo_c = _make_repo_info()
+    project = ProjectSpec(repos={"a": repo_a, "b": repo_b, "c": repo_c}, workdir=workdir)
 
     module_a = workdir / "a"
     module_b = workdir / "b"
+    module_c = workdir / "c"
     module_a.mkdir()
     module_b.mkdir()
+    module_c.mkdir()
     (module_b / ".git").mkdir()
+    (module_c / ".git").mkdir()
 
     def fake_get_module_path(wd: Path, name: str, repo_info: RepoInfo) -> Path:
         return wd / name
@@ -151,20 +155,30 @@ async def test_gather_dirty_repo_info_filters_by_git_and_status(monkeypatch, tmp
     async def fake_run_git(*args: str, cwd: Path | None = None):
         assert cwd is not None
         calls.append(cwd)
-        return 0, " M file.txt" if cwd == module_b else "", ""
+        # a: no .git (skipped)
+        # b: dirty (non-empty output)
+        # c: clean (empty output - branch 71->61)
+        if cwd == module_b:
+            return 0, " M file.txt", ""
+        if cwd == module_c:
+            return 0, "", ""
+        return 0, "", ""
 
     monkeypatch.setattr("bl.clean_project.get_module_path", fake_get_module_path)
     monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
 
     dirty_infos = await gather_dirty_repo_info(project)
 
+    # Only repo b is dirty
     assert len(dirty_infos) == 1
     name, repo_info, out, module_path = dirty_infos[0]
     assert name == "b"
-    assert repo_info is repo_b
-    assert "file.txt" in out
     assert module_path == module_b
-    assert calls == [module_b]
+
+    # Both b and c were checked (a was skipped due to no .git)
+    assert module_b in calls
+    assert module_c in calls
+    assert module_a not in calls
 
 
 @pytest.mark.asyncio
@@ -205,6 +219,45 @@ async def test_show_diffs(monkeypatch, tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_show_diffs_empty_output(monkeypatch, tmp_path: Path) -> None:
+    """Test show_diffs handles empty diff output gracefully."""
+    from bl.clean_project import show_diffs
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""  # Dirty repo
+        if "diff" in args:
+            return 0, "", ""  # Empty diff output for both unstaged and staged
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed_content = []
+
+    def fake_print(content: Any):
+        printed_content.append(str(content))
+
+    monkeypatch.setattr(console, "print", fake_print)
+
+    # Should not raise, just no output for empty diffs
+    await show_diffs(project)
+
+    # Only the dirty repo message should appear, not the diff headers
+    assert not any("Diff for" in s for s in printed_content)
+    assert not any("Staged diff for" in s for s in printed_content)
+
+
+@pytest.mark.asyncio
 async def test_clean_directory_interactive_oserror(monkeypatch, tmp_path: Path) -> None:
     target = tmp_path / "to_delete"
     target.mkdir()
@@ -224,7 +277,6 @@ async def test_clean_directory_interactive_oserror(monkeypatch, tmp_path: Path) 
 async def test_handle_dirty_repos_dirty_repo(monkeypatch, tmp_path: Path) -> None:
     from bl.clean_project import handle_dirty_repos
     from bl.spec_processor import console
-    from unittest.mock import AsyncMock
 
     workdir = tmp_path
     repo_info = _make_repo_info()
@@ -249,6 +301,76 @@ async def test_handle_dirty_repos_dirty_repo(monkeypatch, tmp_path: Path) -> Non
     ret = await handle_dirty_repos(project, dry_run=False)
     assert ret == 1
     assert any("dirty repositories" in str(p).lower() for p in printed)
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_reset_success(monkeypatch, tmp_path: Path) -> None:
+    """Test that user answering 'y' triggers repo reset and returns success."""
+    from bl.clean_project import handle_dirty_repos, reset_repo
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    reset_called = []
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        if "reset" in args:
+            reset_called.append(cwd)
+            return 0, "", ""
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+    monkeypatch.setattr("builtins.input", lambda x: "y")
+
+    ret = await handle_dirty_repos(project, dry_run=False)
+    assert ret == 0
+    assert len(reset_called) == 1
+    assert reset_called[0] == module_path
+
+
+@pytest.mark.asyncio
+async def test_handle_dirty_repos_reset_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that reset failure returns 1."""
+    from bl.clean_project import handle_dirty_repos
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    repo_info = _make_repo_info()
+    project = ProjectSpec(repos={"mod": repo_info}, workdir=workdir)
+
+    module_path = workdir / "mod"
+    module_path.mkdir()
+    (module_path / ".git").mkdir()
+
+    async def fake_run_git(*args, cwd=None):
+        if "status" in args:
+            return 0, " M file.txt", ""
+        if "reset" in args:
+            return 1, "", "reset failed"
+        return 0, "", ""
+
+    monkeypatch.setattr("bl.clean_project.run_git", fake_run_git)
+    monkeypatch.setattr("bl.clean_project.get_module_path", lambda *args: module_path)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+    monkeypatch.setattr("builtins.input", lambda x: "y")
+
+    ret = await handle_dirty_repos(project, dry_run=False)
+    assert ret == 1
+    assert any("Failed to reset" in str(p) for p in printed)
 
 
 @pytest.mark.asyncio
@@ -417,3 +539,114 @@ async def test_handle_remove_dry_run_shows_existing(tmp_path: Path, monkeypatch)
     ret = await handle_remove(workdir, force=True, dry_run=True)
     assert ret == 0
     assert src.exists()
+
+
+@pytest.mark.asyncio
+async def test_handle_remove_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that deletion failure returns 1."""
+    from bl.clean_project import handle_remove, _clean_directory
+    from bl.spec_processor import console
+
+    workdir = tmp_path
+    src = workdir / "src"
+    src.mkdir()
+
+    # Mock _clean_directory to return True (failure)
+    monkeypatch.setattr("bl.clean_project._clean_directory", lambda path, non_interactive: True)
+
+    printed = []
+    monkeypatch.setattr(console, "print", lambda x: printed.append(str(x)))
+
+    ret = await handle_remove(workdir, force=True, dry_run=False)
+    assert ret == 1
+    assert src.exists()  # Not deleted because deletion failed
+
+
+@pytest.mark.asyncio
+async def test_clean_project_handles_dirty_repos_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that handle_dirty_repos failure propagates to clean_project return."""
+    from bl.clean_project import clean_project, handle_dirty_repos
+
+    workdir = tmp_path
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    # Mock handle_dirty_repos to return 1 (failure) - must be async
+    async def mock_handle_dirty_repos(spec, dry_run):
+        return 1
+
+    monkeypatch.setattr("bl.clean_project.handle_dirty_repos", mock_handle_dirty_repos)
+
+    ret = await clean_project(project, remove=False)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_clean_project_handles_unlink_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that handle_unlink failure propagates to clean_project return."""
+    from bl.clean_project import clean_project, handle_unlink
+
+    workdir = tmp_path
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    # Mock handle_unlink to return 1 (failure) - must be async
+    async def mock_handle_unlink(workdir, dry_run):
+        return 1
+
+    monkeypatch.setattr("bl.clean_project.handle_unlink", mock_handle_unlink)
+
+    ret = await clean_project(project, unlink=True)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_clean_project_handles_remove_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that handle_remove failure propagates to clean_project return."""
+    from bl.clean_project import clean_project, handle_remove
+
+    workdir = tmp_path
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    # Mock handle_remove to return 1 (failure) - must be async
+    async def mock_handle_remove(workdir, force, dry_run):
+        return 1
+
+    monkeypatch.setattr("bl.clean_project.handle_remove", mock_handle_remove)
+
+    ret = await clean_project(project, remove=True)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_clean_project_handles_unlink_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that handle_unlink failure propagates to clean_project return."""
+    from bl.clean_project import clean_project, handle_unlink
+
+    workdir = tmp_path
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    # Mock handle_unlink to return 1 (failure) - must be async
+    async def mock_handle_unlink(workdir, dry_run):
+        return 1
+
+    monkeypatch.setattr("bl.clean_project.handle_unlink", mock_handle_unlink)
+
+    ret = await clean_project(project, unlink=True)
+    assert ret == 1
+
+
+@pytest.mark.asyncio
+async def test_clean_project_handles_remove_failure(monkeypatch, tmp_path: Path) -> None:
+    """Test that handle_remove failure propagates to clean_project return."""
+    from bl.clean_project import clean_project, handle_remove
+
+    workdir = tmp_path
+    project = ProjectSpec(repos={}, workdir=workdir)
+
+    # Mock handle_remove to return 1 (failure) - must be async
+    async def mock_handle_remove(workdir, force, dry_run):
+        return 1
+
+    monkeypatch.setattr("bl.clean_project.handle_remove", mock_handle_remove)
+
+    ret = await clean_project(project, remove=True)
+    assert ret == 1

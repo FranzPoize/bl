@@ -173,25 +173,25 @@ def normalize_merge_result(ret: int, out: str, err: str):
     return ret, err
 
 
-async def print_fetch_output(name, fetch_data, module_path):
+async def print_fetch_output(name, fetch_data, module_path) -> str:
     ref = fetch_data["ref"]
     base = fetch_data["base"]
     target = fetch_data["target"]
     fetch_output = (
-        f"[deep_sky_blue3]{name}: updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
-        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1] for {ref}[/deep_sky_blue3]\n"
+        f"\t[yellow1]{name}[/yellow1]: [yellow1]{ref}[/yellow1]: [deep_sky_blue3]Updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
+        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1][/deep_sky_blue3]\n"
     )
     # TODO(franz) if the difference is not fast forwardable it needs to be ... instead of ..
     log_ret, log_out, log_err = await run_git(
-        "log", "--pretty", "--format=%h|(%an)| %s", f"{base}..{target}", cwd=module_path
+        "log", "--pretty", "--format=%h|(%an)|%s|%ar", f"{base}..{target}", cwd=module_path
     )
     log_lines = log_out.split("\n")[:-1]
 
     for log in log_lines:
-        hash, author, message = tuple(log.split("|"))
-        fetch_output += f"[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]:{message}\n"
+        hash, author, message, date = tuple(log.split("|"))
+        fetch_output += f"\t\t[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]: {message} [grey35]({date})[/grey35]\n"
 
-    console.print(fetch_output)
+    return fetch_output
 
 
 class RepoProcessor:
@@ -480,10 +480,13 @@ class RepoProcessor:
 
         ret, out, err = await run_git(*args, cwd=module_path)
 
+        # Collect all outputs to return instead of printing immediately
+        fetch_outputs = []
         for parsed in parse_fetch_output(out):
-            await print_fetch_output(self.name, parsed, module_path)
+            output = await print_fetch_output(self.name, parsed, module_path)
+            fetch_outputs.append(output)
 
-        return ret, out, err
+        return ret, out, err, fetch_outputs
 
     def filter_non_link_module(self, spec: RepoInfo) -> list[Path]:
         result = []
@@ -593,7 +596,7 @@ class RepoProcessor:
         module_path: Path,
         symlink_modules: list[Path],
         git_modules: list[str],
-    ) -> int:
+    ) -> tuple[int, list[str]]:
         # TODO(franz): return a proper error code with data so that we can do something we it
         # like reset the repo or remove an unexisting branch from the spec
         count_step = self.count_step()
@@ -604,7 +607,10 @@ class RepoProcessor:
         )
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
-            return -1
+            return -1, []
+
+        # Collect all fetch outputs to print at the end
+        fetch_outputs = []
 
         # First thing we need to do is setup the repos
         # - If the repo does not exist we need to clone it
@@ -628,20 +634,20 @@ class RepoProcessor:
                 ret, err = await self.reset_repo_for_work(module_path)
             elif path_exists and not path_empty:
                 self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
-                return -1
+                return -1, []
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
                 ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
                 if ret != 0:
                     self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
-                return -1
+                return -1, []
 
             ret, err = await self.check_main_remote(module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Check main remote: {err}[/red]")
-                return -1
+                return -1, []
 
             ret, err = await self.setup_remote_branches(module_path)
 
@@ -650,7 +656,7 @@ class RepoProcessor:
             ret, err = await self.unshallow_if_necessary(module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
-                return -1
+                return -1, []
 
             # HACK(franz): This is weird but it works
             ret, out, err = await run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=module_path)
@@ -669,7 +675,8 @@ class RepoProcessor:
 
                 for remote, refspec_list in refspec_by_remote.items():
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
-                    ret, out, err = await self.fetch_multi(remote, refspec_list, module_path)
+                    ret, out, err, multi_outputs = await self.fetch_multi(remote, refspec_list, module_path)
+                    fetch_outputs.extend(multi_outputs)
                 await run_git("checkout", current_branch, cwd=module_path)
             else:
                 self.progress.update(self.task_id, status=f"Pulling shallow {self.name}")
@@ -683,9 +690,13 @@ class RepoProcessor:
                     f"{refspec_info.refspec}",
                     cwd=module_path,
                 )
-                # TODO(franz): this needs to be able to print non fast forward difference
-                # for parsed in parse_fetch_output(out):
-                #     await print_fetch_output(self.name, parsed, module_path)
+                # Collect shallow fetch outputs to return instead of printing
+                shallow_outputs = []
+                parsed_results = parse_fetch_output(out)
+                for parsed in parsed_results:
+                    output = await print_fetch_output(self.name, parsed, module_path)
+                    shallow_outputs.append(output)
+                fetch_outputs.extend(shallow_outputs)
                 await run_git("checkout", current_branch, cwd=module_path)
                 await run_git("reset", "--hard", f"{refspec_info.remote}/{refspec_info.refspec}", cwd=module_path)
 
@@ -694,13 +705,13 @@ class RepoProcessor:
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
-                return -1
+                return -1, []
 
             self.progress.advance(self.task_id)
             ret, err = await self.setup_merged_branch(module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Merged branch error: {err}[/red]")
-                return ret
+                return ret, []
 
             # Merge everything into the main branch
             for refspec_info in self.repo_info.refspec_info[1:]:
@@ -709,7 +720,7 @@ class RepoProcessor:
                 )
                 self.progress.advance(self.task_id)
                 if ret != 0:
-                    return ret
+                    return ret, []
 
             # We sparse checkout after the merge because it's faster to do it
             # in this order
@@ -717,14 +728,14 @@ class RepoProcessor:
 
         ret = await self.run_shell_commands(self.repo_info, module_path)
         if ret != 0:
-            return ret
+            return ret, []
         self.progress.advance(self.task_id)
 
         for glob in self.repo_info.patch_globs_to_apply:
             ret, err = await self.check_and_apply_patch(glob, module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
-                return ret
+                return ret, []
             self.progress.advance(self.task_id)
 
         self.progress.update(self.task_id, status="Linking directory")
@@ -732,12 +743,14 @@ class RepoProcessor:
             ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
-                return ret
+                return ret, []
 
         self.count_progress.advance(self.count_task)
         self.progress.remove_task(self.task_id)
 
-    async def queue_repo_task(self) -> int:
+        return 0, fetch_outputs
+
+    async def queue_repo_task(self) -> tuple[int, str, list[str]]:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
@@ -749,15 +762,15 @@ class RepoProcessor:
             # a list of remotes
             # a list of modules
             try:
-                ret = await self.process_repo(module_path, symlink_modules, git_modules)
-                return ret
+                ret, fetch_outputs = await self.process_repo(module_path, symlink_modules, git_modules)
+                return ret, self.name, fetch_outputs
 
             except Exception as e:
                 self.progress.update(self.task_id, status=f"[red]Error: {str(e)}")
                 raise e
-                return -1
+                return -1, self.name, []
 
-        return 0
+        return 0, self.name, []
 
 
 async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
@@ -805,6 +818,19 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             tasks.append(repo_processor.queue_repo_task())
 
         # this should error if a task crashes
-        return_codes = await asyncio.gather(*tasks)
-        if any(return_codes):
-            raise Exception()
+        results = await asyncio.gather(*tasks)
+
+        # Collect all fetch outputs and print at the end, grouped by repo
+        all_fetch_outputs = []
+        for result in results:
+            return_code, name, fetch_outputs = result
+            if fetch_outputs:
+                all_fetch_outputs.append((name, fetch_outputs))
+            if return_code != 0:
+                raise Exception()
+
+        # Print all fetch outputs grouped by repo
+        if all_fetch_outputs:
+            for repo_name, outputs in all_fetch_outputs:
+                console.print(f"[green1]✔ [/green1][orange1] {repo_name}[/orange1]")
+                console.print("".join(outputs))

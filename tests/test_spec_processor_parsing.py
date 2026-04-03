@@ -103,7 +103,7 @@ async def test_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
 
     async def fake_run_git(*args, cwd=None):
         if "log" in args:
-            return 0, "abc123|Author|Commit message\n", ""
+            return 0, "abc123|Author|Commit message|2 days ago\n", ""
         return 0, "", ""
 
     monkeypatch.setattr("bl.spec_processor.run_git", fake_run_git)
@@ -114,12 +114,13 @@ async def test_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
         "ref": "main",
     }
 
-    await print_fetch_output("test-repo", fetch_data, module_path)
+    result = await print_fetch_output("test-repo", fetch_data, module_path)
 
-    assert len(printed) == 1
-    assert "test-repo" in printed[0]
-    assert "abc123def" in printed[0]
-    assert "def456789" in printed[0]
-    assert "main" in printed[0]
-    assert "abc123" in printed[0]
-    assert "Author" in printed[0]
+    assert result is not None
+    assert isinstance(result, str)
+    assert "test-repo" in result
+    assert "abc123def" in result
+    assert "def456789" in result
+    assert "main" in result
+    assert "abc123" in result
+    assert "Author" in result
