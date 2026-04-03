@@ -25,6 +25,8 @@ from bl.utils import (
 console = Console()
 logger = logging.getLogger(__name__)
 
+# TODO(franz): check git version for fetch --porcelain
+
 # From the spec generate a list of action with the data for the action and a type of action
 # - Setup repo
 # - fetch remote with branches
