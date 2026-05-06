@@ -25,8 +25,9 @@ from bl.utils import (
 console = Console()
 logger = logging.getLogger(__name__)
 
-# TODO(franz): check git version for fetch --porcelain
+# TODO (franz): check git version for fetch --porcelain
 
+# FIX (franz): This flow is outdated
 # From the spec generate a list of action with the data for the action and a type of action
 # - Setup repo
 # - fetch remote with branches
@@ -51,12 +52,12 @@ logger = logging.getLogger(__name__)
 # Link modules:
 # - link all the modules according to how Paradoxxxzero wants it to be done
 
-# TODO(franz): Error handling should be watch carefully because if
+# TODO (franz): Error handling should be watch carefully because if
 # we don't exit on some error code due to the fact that git resolve to
 # the parent repo we could activate sparse checkout on a parent folder
 # should probably make a function that handles the error in a unified manner
 # and crash if the error is on a vital part of the process
-# TODO(franz): For the error management
+# TODO (franz): For the error management
 # - For each git command think hard and long about if the error is critical or not
 # - Put a comment about what are the consequences of the error
 # - handle the error
@@ -658,9 +659,17 @@ class RepoProcessor:
                 self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
                 return -1, []
 
-            # HACK(franz): This is weird but it works
+            # HACK(franz): This didn't work because if we change base branch it will checkout a branch
+            # we don't want at the end
+            # ret, out, err = await run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=module_path)
+            # main_target_branch = out.strip()
+            # TODO(franz): This is horrible and need to be cleaned up
             ret, out, err = await run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=module_path)
-            current_branch = out.strip()
+            main_target_branch = (
+                out.strip()
+                if out.strip() == self.repo_info.refspec_info[0].refspec
+                else self.repo_info.refspec_info[0].refspec
+            )
             ret, out, err = await run_git("rev-parse", "--verify", "temp", cwd=module_path)
             has_temp_branch = ret == 0
 
@@ -677,7 +686,7 @@ class RepoProcessor:
                     self.progress.update(self.task_id, status=f"Fetching multi from {remote}")
                     ret, out, err, multi_outputs = await self.fetch_multi(remote, refspec_list, module_path)
                     fetch_outputs.extend(multi_outputs)
-                await run_git("checkout", current_branch, cwd=module_path)
+                await run_git("switch", main_target_branch, cwd=module_path)
             else:
                 self.progress.update(self.task_id, status=f"Pulling shallow {self.name}")
                 # We need to pull the main branch shallow
@@ -687,7 +696,7 @@ class RepoProcessor:
                     "--depth",
                     "1",
                     refspec_info.remote,
-                    f"{refspec_info.refspec}",
+                    f"{refspec_info.refspec}{(':' + refspec_info.refspec) if refspec_info.type == OriginType.REF else ''}",
                     cwd=module_path,
                 )
                 # Collect shallow fetch outputs to return instead of printing
@@ -697,7 +706,7 @@ class RepoProcessor:
                     output = await print_fetch_output(self.name, parsed, module_path)
                     shallow_outputs.append(output)
                 fetch_outputs.extend(shallow_outputs)
-                await run_git("checkout", current_branch, cwd=module_path)
+                await run_git("checkout", main_target_branch, cwd=module_path)
                 await run_git("reset", "--hard", f"{refspec_info.remote}/{refspec_info.refspec}", cwd=module_path)
 
             # HACK(franz): This is weird but it works
