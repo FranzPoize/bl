@@ -13,7 +13,7 @@ from rich.table import Column, Table
 
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
-    english_env,
+    bl_env,
     format_diff,
     get_local_ref,
     get_module_path,
@@ -248,7 +248,7 @@ class RepoProcessor:
                 cwd=str(module_path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=english_env,
+                env=bl_env,
             )
             stdout, stderr = await proc.communicate()
             if proc.returncode != 0:

@@ -7,9 +7,11 @@ from typing import Optional
 
 from bl.types import RefspecInfo, RepoInfo
 
-english_env = os.environ.copy()
+bl_env = os.environ.copy()
 # Ensure git outputs in English for consistent parsing
-english_env["LANG"] = "en_US.UTF-8"
+bl_env["LANG"] = "en_US.UTF-8"
+bl_env["GIT_TERMINAL_PROMPT"] = "0"
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=str(cwd) if cwd else None,
-        env=english_env,
+        env=bl_env,
     )
     stdout, stderr = await proc.communicate()
     returncode = proc.returncode if proc.returncode is not None else -1
