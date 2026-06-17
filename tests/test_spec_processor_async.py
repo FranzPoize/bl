@@ -857,7 +857,7 @@ async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(rp, "process_repo", fake_process_repo)
 
     with pytest.raises(RuntimeError, match="test error"):
-        await rp.queue_repo_task()
+        await rp.queue_repo_task({})
 
 
 @pytest.mark.asyncio
@@ -887,15 +887,12 @@ async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> N
         async def __aexit__(self, *args):
             pass
 
-    async def fake_queue_repo_task():
-        return 1
-
     class FakeRepoProcessor:
-        def __init__(self, rp):
+        def __init__(self, *args, **kwargs):
             pass
 
-        async def queue_repo_task(self):
-            return 1
+        async def queue_repo_task(self, config_section):
+            return 1, "test", []
 
     from bl import spec_processor as sp
 

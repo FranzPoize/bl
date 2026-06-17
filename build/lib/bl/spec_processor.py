@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import warnings
-from configparser import SectionProxy
+from os.path import exists
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,7 +11,6 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl.config import get_from_config, load_config
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
     bl_env,
@@ -25,8 +24,6 @@ from bl.utils import (
 
 console = Console()
 logger = logging.getLogger(__name__)
-
-# TODO (franz): Please check the todo to see if they are up to date
 
 # TODO (franz): check git version for fetch --porcelain
 
@@ -64,9 +61,6 @@ logger = logging.getLogger(__name__)
 # - For each git command think hard and long about if the error is critical or not
 # - Put a comment about what are the consequences of the error
 # - handle the error
-# TODO (franz): Better log please
-# Store the error somewhere instead of logging it like a maniac
-# group it by repo and spit it by repo into the log file
 
 
 def rich_warning(message, category, filename, lineno, file=None, line=None):
@@ -210,9 +204,8 @@ class RepoProcessor:
         self,
         workdir: Path,
         name: str,
-        config_section: SectionProxy,
-        repo_info: RepoInfo,
         semaphore: asyncio.Semaphore,
+        repo_info: RepoInfo,
         progress: Progress,
         count_progress: Progress,
         count_task: TaskID,
@@ -329,7 +322,7 @@ class RepoProcessor:
 
     async def unshallow_if_necessary(self, module_path: Path):
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
-        is_shallow = s_out.strip() == "true"
+        is_shallow = s_out == "true"
         need_unshallow = len(self.repo_info.refspec_info) > 1
         if is_shallow and need_unshallow:
             ret, out, err = await run_git("pull", "--rebase", "--unshallow", cwd=module_path)
@@ -510,9 +503,7 @@ class RepoProcessor:
                 )
         return result
 
-    def filter_local_module(
-        self, module_list: List[str], local_paths: Dict[str, List[str]], config_section: SectionProxy
-    ) -> list[str]:
+    def filter_local_module(self, module_list: List[str], local_paths: Dict[str, List[str]]) -> list[str]:
         if not local_paths:
             return module_list
 
@@ -520,7 +511,7 @@ class RepoProcessor:
         for module_name in module_list:
             local_path = self.local_path(module_name, local_paths)
             if local_path:
-                if local_path.exists() or get_from_config(config_section, "editable", module_name) == "True":
+                if local_path.exists():
                     continue
                 else:
                     console.print(
@@ -768,11 +759,11 @@ class RepoProcessor:
 
         return 0, fetch_outputs
 
-    async def queue_repo_task(self, config_section) -> tuple[int, str, list[str]]:
+    async def queue_repo_task(self) -> tuple[int, str, list[str]]:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
-        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths, config_section)
+        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths)
 
         async with self.semaphore:
             # As an input we have 3 things for each repo
@@ -793,8 +784,6 @@ class RepoProcessor:
 
 async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
     """Processes all modules in a ProjectSpec."""
-    project_name = project_spec.workdir.absolute().parent.stem
-    config_file = load_config(project_name)
     (project_spec.workdir / "external-src").mkdir(parents=True, exist_ok=True)
 
     task_list_progress = Progress(
@@ -824,20 +813,18 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
     with Live(progress_table, console=console, refresh_per_second=10):
         tasks = []
         for name, repo_info in project_spec.repos.items():
-            config_section = get_from_config(config_file, name)
             repo_processor = RepoProcessor(
                 project_spec.workdir,
                 name,
-                config_section,
-                repo_info,
                 semaphore,
+                repo_info,
                 task_list_progress,
                 task_count_progress,
                 count_task,
                 concurrency,
                 use_bindfs,
             )
-            tasks.append(repo_processor.queue_repo_task(config_section))
+            tasks.append(repo_processor.queue_repo_task())
 
         # this should error if a task crashes
         results = await asyncio.gather(*tasks)

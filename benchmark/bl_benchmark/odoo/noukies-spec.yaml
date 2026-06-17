@@ -1,0 +1,1404 @@
+# ON
+odoo:
+  modules:
+    - account
+    - account_edi
+    - account_edi_extended
+    - account_edi_facturx
+    - account_edi_ubl
+    - account_qr_code_sepa
+    - account_edi_ubl_cii
+    - analytic
+    - auth_oauth
+    - auth_signup
+    - auth_totp
+    - auth_totp_portal
+    - barcodes
+    - base_geolocalize
+    - base_iban
+    - base_import
+    - base_setup
+    - base_sparse_field
+    - base_vat
+    - board
+    - bus
+    - calendar
+    - contacts
+    - coupon
+    - crm
+    - crm_iap_lead
+    - crm_iap_lead_enrich
+    - crm_sms
+    - delivery
+    - digest
+    - fetchmail
+    - fetchmail_gmail
+    - fetchmail_outlook
+    - google_account
+    - google_calendar
+    - google_gmail
+    - hr
+    - hr_org_chart
+    - hr_timesheet # Install-only
+    - http_routing
+    - iap
+    - iap_crm
+    - iap_mail
+    - l10n_be
+    - l10n_fr
+    - l10n_us
+    - l10n_eu_service
+    - l10n_generic_coa
+    - l10n_multilang
+    - mail
+    - mail_bot
+    - mail_bot_hr
+    - mass_mailing # Install-only
+    - microsoft_outlook
+    - mrp
+    - mrp_account
+    - mrp_landed_costs
+    - partner_autocomplete
+    - payment
+    - payment_adyen # Install-only (payment)
+    - payment_alipay # Install-only (payment)
+    - payment_authorize # Install-only (payment)
+    - payment_buckaroo # Install-only (payment)
+    - payment_fix_register_token
+    - payment_ingenico # Install-only (payment)
+    - payment_odoo_by_adyen # Install-only (payment)
+    - payment_paypal # Install-only (payment)
+    - payment_payulatam # Install-only (payment)
+    - payment_payumoney # Install-only (payment)
+    - payment_sips # Install-only (payment)
+    - payment_stripe
+    - payment_transfer
+    - phone_validation
+    - point_of_sale
+    - portal
+    - portal_rating
+    - pos_discount
+    - pos_epson_printer
+    - pos_hr
+    - pos_sale
+    - procurement_jit
+    - product
+    - product_margin
+    - product_matrix
+    - project # Install-only
+    - purchase
+    - purchase_mrp
+    - purchase_product_matrix
+    - purchase_stock
+    - rating
+    - resource
+    - sale
+    - sale_coupon
+    - sale_coupon_delivery
+    - sale_crm
+    - sale_management
+    - sale_mrp
+    - sale_product_configurator
+    - sale_product_matrix
+    - sale_purchase
+    - sale_purchase_stock
+    - sale_stock
+    - sales_team
+    - sms
+    - snailmail
+    - snailmail_account
+    - stock
+    - stock_account
+    - stock_landed_costs
+    - stock_picking_batch
+    - stock_sms
+    - uom
+    - utm
+    - web
+    - web_editor
+    - web_kanban_gauge
+    - web_tour
+    - web_unsplash
+    - website # Install-only
+  # src: https://github.com/odoo/odoo 14.0
+  # shell_command_after:
+  #   - git am ../patches/odoo/*
+  remotes:
+    odoo: https://github.com/odoo/odoo
+  locales:
+    - fr
+    - en
+  merges:
+    - odoo 14.0
+  shell_command_after:
+    - git am ../patches/odoo/*
+  #   - ak 14.0-fix-pos-newclient-fpos-undefined # POS
+  #   - ak 14.0-not-more-commit-in-transaction # POS
+  # remotes:
+  #   odoo: https://github.com/odoo/odoo
+  #   ak: https://github.com/akretion/odoo
+  # merges:
+  #   - odoo 14.0
+  #   - ak 14.0-fix-pos-newclient-fpos-undefined # POS
+  #   - ak 14.0-not-more-commit-in-transaction # POS
+
+server-ux:
+  modules:
+    - base_export_manager
+    - base_search_custom_field_filter
+    - date_range
+    - mass_editing
+    - server_action_domain
+  src: https://github.com/OCA/server-ux 14.0
+
+server-ux-multisearch_field:
+  modules:
+    - multisearch_field
+  src: https://github.com/akretion/server-ux 14.0-Multisearch_field
+  # OCA PR 1002, déjà migré V16
+
+ak-odoo-incubator:
+  modules:
+    - attachment_asset_in_db
+    - database_age_cron
+  src: https://github.com/akretion/ak-odoo-incubator 14.0
+
+connector:
+  modules:
+    - component
+    - component_event
+    - connector
+  src: https://github.com/OCA/connector 14.0
+
+delivery-carrier:
+  modules:
+    - base_delivery_carrier_label
+    - delivery_carrier_info
+  src: https://github.com/oca/delivery-carrier 14.0
+
+delivery-carrier_roulier:
+  modules:
+    - delivery_roulier
+    - delivery_roulier_mondialrelay
+    - delivery_roulier_option
+  src: https://github.com/akretion/delivery-carrier 14.0-delivery-roulier-mondialrelay
+
+knowledge:
+  modules:
+    - document_url
+  src: https://github.com/OCA/knowledge 14.0
+
+connector-telephony:
+  modules:
+    - base_phone
+  src: https://github.com/OCA/connector-telephony 14.0
+
+pim:
+  modules:
+    - attribute_set
+    - attribute_set_completeness
+    - attribute_set_mass_edit
+    - attribute_set_searchable
+    - pim
+    - product_attribute_set
+    - product_attribute_set_completeness
+  src: https://github.com/OCA/odoo-pim 14.0
+
+pattern-import-export:
+  modules:
+    # - pattern_import_export_synchronize
+    - pattern_import_export
+    - pattern_import_export_csv
+    - pattern_import_export_xlsx
+  src: https://github.com/shopinvader/pattern-import-export 14.0
+
+queue:
+  modules:
+    - queue_job
+    - queue_job_batch
+    - queue_job_batch_size
+    - queue_job_subscribe
+  remotes:
+    ak: https://github.com/akretion/queue
+    oca: https://github.com/OCA/queue
+  merges:
+    - oca 14.0
+    - ak 14.0-fix-cancel-speed # https://github.com/OCA/queue/pull/496
+    - oca refs/pull/566/head # queue_job_batch_size
+
+partner-contact:
+  modules:
+    - base_partner_sequence
+    - partner_address_version
+    - partner_company_group
+    - partner_contact_access_link
+    - partner_contact_birthdate
+    - partner_contact_gender
+    - partner_contact_lang
+    - partner_contact_nationality
+    - partner_contact_personal_information_page
+    - partner_firstname
+    - partner_helper
+  src: https://github.com/OCA/partner-contact 14.0
+
+# this seems obsolete as the oca module have this fix already, but
+# strangely enough for a longer time (from 2020)
+partner-contact_address_default:
+  modules:
+    - partner_contact_address_default
+  src: https://github.com/akretion/partner-contact 14.0-fix-partner_contact_address_default
+
+product-attribute:
+  modules:
+    - product_code_unique
+    - product_multi_category
+    - product_packaging_dimension
+    - product_packaging_type
+    - product_state
+    - product_supplierinfo_for_customer
+  src: https://github.com/OCA/product-attribute 14.0
+
+product-attribute-assortment:
+  modules:
+    - product_assortment
+    - product_pricelist_assortment
+  src: https://github.com/OCA/product-attribute 14.0
+
+product-attribute-backports:
+  modules:
+    - product_dimension
+    - product_logistics_uom
+  src: https://github.com/akretion/product-attribute 14.0-product-logistics-uom-backports-18
+
+product-brand:
+  modules:
+    - product_brand
+  src: https://github.com/OCA/brand 14.0
+
+product-variant:
+  modules:
+    - product_variant_default_code
+    - product_variant_inactive
+    - product_variant_sale_price
+  src: https://github.com/OCA/product-variant 14.0
+
+sale-workflow:
+  modules:
+    - product_supplierinfo_for_customer_sale
+    - sale_automatic_workflow_delivery_state
+    - sale_automatic_workflow_job
+    - sale_commercial_partner
+    - sale_coupon_order_discount_fast_change_ui
+    - sale_delivery_state
+    - sale_discount_display_amount
+    - sale_exception
+    - sale_order_delivery_value
+    - sale_order_discount_fast_change_ui
+    - sale_partner_incoterm
+    - sale_partner_primeship
+    - sale_product_set
+    - sale_shipping_info_helper
+    - sale_wishlist
+  remotes:
+    oca: https://github.com/OCA/sale-workflow
+    ak: https://github.com/akretion/sale-workflow
+  merges:
+    - oca 14.0
+    - oca refs/pull/2221/head # sale_order_delivery_value
+    # - oca refs/pull/2592/head # sale_discount_display_amount : untaxed
+    - ak 14.0-sale_discount_display_amount-add-untaxed-amount_with_delay # Same as above but with delayed migration, to replace with above after migration
+    # - ak sale-partner-primeship-add_security_access # PR 2247 dans la branch OCA -> superseeded by :
+    - ak 14.0-sales_partner_primeship-add_check_expired_primeships # PR 2815 dans la branch OCA
+
+sale-workflow-sale_automatic_workflow:
+  modules:
+    - sale_automatic_workflow
+  src: https://github.com/akretion/sale-workflow 14.0-backport-imp-sale_automatic_workflow_add_send_invoice
+#    - oca refs/pull/3520/head
+
+sale-workflow-without_price:
+  modules:
+    - sale_order_report_without_price
+  src: https://github.com/akretion/sale-workflow 14.0-sale-order-report-without-price
+#    - oca refs/pull/1731/head # sale_order_report_without_price
+
+sale-workflow_policy:
+  modules:
+    - sale_invoice_policy
+  src: https://github.com/akretion/sale-workflow 14.0-mig-sale_invoice_policy
+
+purchase-workflow:
+  modules:
+    - product_form_purchase_link
+    - purchase_advance_payment
+    - purchase_commercial_partner
+    - purchase_last_price_info
+    - purchase_order_line_menu
+    - purchase_order_line_packaging_qty
+    - purchase_partner_incoterm
+    - purchase_rfq_number
+  src: https://github.com/OCA/purchase-workflow 14.0
+
+purchase-workflow-freight:
+  modules:
+    - purchase_freight_delay
+  remotes:
+    oca: https://github.com/oca/purchase-workflow
+    ak: https://github.com/akretion/purchase-workflow
+  merges:
+    - oca 14.0
+    - ak 14-freight # refs/pull/1465/head closed
+
+purchase-workflow-13:
+  modules:
+    - purchase_propagate_qty
+  src: https://github.com/OCA/purchase-workflow 13.0
+
+stock-logistics-barcode:
+  modules:
+    - barcodes_generator_abstract
+    - barcodes_generator_product
+  src: https://github.com/oca/stock-logistics-barcode 14.0
+
+stock-logistics-workflow:
+  modules:
+    - purchase_stock_picking_invoice_link
+    - stock_picking_estimate_value
+    - stock_picking_estimate_value_order_prices
+    - stock_picking_invoice_link
+    - stock_picking_purchase_order_link
+    - stock_picking_reallocation
+    - stock_picking_sale_order_link
+    - stock_picking_show_return
+  remotes:
+    oca: https://github.com/OCA/stock-logistics-workflow
+    ak: https://github.com/akretion/stock-logistics-workflow
+  merges:
+    - oca 14.0
+    - ak 14.0-stock_picking_estimate_value # refs/pull/988/head closed
+
+stock-logistics-workflow-stock-landed-cost-product-logistics-uom:
+  modules:
+    - stock_landed_cost_product_logistics_uom
+  src: https://github.com/akretion/stock-logistics-workflow 14-add-stock-landed-cost-product-logistics-uom
+
+stock-logistics-warehouse:
+  modules:
+    - product_quantity_update_force_inventory
+    - stock_available_base_exclude_location
+    - stock_change_qty_reason
+    - stock_demand_estimate
+    - stock_free_quantity
+    - stock_helper
+    - stock_warehouse_calendar
+  src: https://github.com/oca/stock-logistics-warehouse 14.0
+
+storage:
+  modules:
+    - storage_backend
+    - storage_backend_ftp
+    - storage_file
+    - storage_image
+    - storage_image_product
+    - storage_media
+    - storage_media_product
+    - storage_thumbnail
+  remotes:
+    oca: https://github.com/OCA/storage
+    ak: https://github.com/akretion/storage
+  merges:
+    - oca 14.0
+    - ak 14.0-target-proper-directory
+
+storage_backend_s3:
+  modules:
+    - storage_backend_s3
+  src: https://github.com/akretion/storage 14.0-storage_backend_s3-fix-empty-delete #oca refs/pull/217/head
+
+server-brand:
+  modules:
+    - disable_odoo_online
+    - remove_odoo_enterprise
+  src: https://github.com/oca/server-brand 14.0
+
+# server-brand_mail:
+# A voir si on l'installe
+#   modules:
+#    - remove_odoo_brand_mail
+#   src: https://github.com/akretion/server-brand 14.0-add-remove_odoo_brand_mail
+
+server-env:
+  modules:
+    - data_encryption
+    - mail_environment
+    - server_environment
+  src: https://github.com/OCA/server-env 14.0
+
+server-env-data:
+  modules:
+    - server_environment_data_encryption
+  src: https://github.com/akretion/server-env 14-data_encryption_binary
+
+server-tools:
+  modules:
+    - attachment_delete_restrict
+    - attachment_queue
+    - attachment_synchronize
+    - base_cron_exclusion
+    - base_exception
+    - base_future_response
+    - base_generate_code
+    - base_jsonify
+    - base_sparse_field_list_support
+    - base_technical_user
+    - bus_alt_connection
+    - jsonifier
+  remotes:
+    oca: https://github.com/OCA/server-tools
+  merges:
+    - oca 14.0
+    - oca refs/pull/2816/head
+
+server-tools-onchange_helper:
+  modules:
+    - onchange_helper
+  src: https://github.com/akretion/server-tools 14.0-imp-onchange_helper_firstcall
+
+server-tools-sentry:
+  modules:
+    - sentry
+  src: https://github.com/akretion/server-tools 14.0-apm-sentry-rebased # refs/pull/2490
+
+server-tools-base_view_inheritence:
+  modules:
+    - base_view_inheritance_extension
+  src: https://github.com/akretion/server-tools 14-mig-base_view_inheritance_extension # refs/pull/1937/head
+
+web:
+  modules:
+    - web_dialog_size
+    - web_environment_ribbon
+    - web_m2x_options
+    - web_notify
+    - web_widget_bokeh_chart
+    - web_widget_dropdown_dynamic
+  src: https://github.com/OCA/web 14.0
+
+shopinvader:
+  modules:
+    - base_url
+    - shopinvader
+    - shopinvader_assortment
+    - shopinvader_auth_api_key
+    - shopinvader_auth_jwt
+    - shopinvader_auth_jwt_transfer_cart
+    - shopinvader_auth_jwt_transfer_cart_coupon
+    - shopinvader_backend_image_proxy
+    - shopinvader_cart_batch
+    - shopinvader_cart_batch_sale_coupon
+    - shopinvader_cart_expiry
+    - shopinvader_contact_address_default
+    - shopinvader_customer_price
+    - shopinvader_delivery_carrier
+    - shopinvader_elasticsearch
+    - shopinvader_image
+    - shopinvader_multi_category
+    - shopinvader_partner_firstname
+    - shopinvader_product_media
+    - shopinvader_product_new
+    - shopinvader_product_stock
+    - shopinvader_product_variant_selector
+    - shopinvader_quotation
+    - shopinvader_sale_coupon
+    - shopinvader_sale_coupon_chainable
+    - shopinvader_sale_coupon_deferred_coupon_dedup
+    - shopinvader_sale_profile
+    - shopinvader_search_engine
+    - shopinvader_seller_access
+    - shopinvader_wishlist
+  remotes:
+    shopinvader: https://github.com/shopinvader/odoo-shopinvader
+    ak: https://github.com/akretion/odoo-shopinvader
+  merges:
+    - shopinvader 14.0
+    # - shopinvader refs/pull/1244/head # Make SESS_CART_ID optional
+    # - shopinvader refs/pull/1251/head # Add the cart transfer method
+    # Merged in :
+    - ak 14.0-shopinvader-auth-jwt-transfer-cart-merged-with-14.0-shopinvader-optional-sess-cart-id-header
+    - ak 14.0-add-states-to-countries # shopinvader refs/pull/1150/head closed # Add country states
+    - ak 14.0-authenticated_partner_id # shopinvader refs/pull/1145/head closed # Add authenticated_partner_id
+    - ak 14.0-shopinvader-sale-coupon-chainable
+    - ak 14.0-shopinvader_sale_coupon_deferred_coupon_dedup
+    - ak 14.0-fix-sale_confirm_email
+    - shopinvader refs/pull/1247/head # Handle email_create partner strategy
+    - ak 14.0-shopinvader-seller-access
+    - shopinvader refs/pull/1323/head # Add the cart update_carrier_shipping_costs method
+    # - ak 14.0-shopinvader-variant-recompute-optimisation superseeded by :
+    - ak 14.0-fix-variant-recompute-infinite-loop
+    - ak 14.0-fix-address-return-value # shopinvader refs/pull/1346/head closed # changes address create return value to created address
+    - shopinvader refs/pull/1355/head # allow to search many2one by id with scope
+    - shopinvader refs/pull/1362/head # Add shopinvader_cart_batch
+    - shopinvader refs/pull/1363/head # Add shopinvader_cart_batch_sale_coupon
+    - shopinvader refs/pull/1537/head # ak 14-0-fix-hash-computation-on-variant-images
+
+shopinvader-invoice:
+  modules:
+    - shopinvader_invoice
+  src: https://github.com/akretion/odoo-shopinvader shopinvader_invoice-add-scoped-search
+
+shopinvader-customer-delivery:
+  modules:
+    - shopinvader_customer_delivery
+  # Remove "-add-client_order_ref" when https://github.com/akretion/odoo-shopinvader/pull/7 is merged
+  src: https://github.com/akretion/odoo-shopinvader 14.0-add_shopinvader_customer_delivery-add-client_order_ref
+
+shopinvader-gift-card:
+  modules:
+    - shopinvader_gift_card
+  src: https://github.com/akretion/odoo-shopinvader 14.0_ADD_shopinvader_gift_card-refactor
+
+shopinvader_sale_order_report_without_price:
+  modules:
+    - shopinvader_sale_order_report_without_price
+  src: https://github.com/akretion/odoo-shopinvader 14.0-sale-order-report-without-price
+
+shopinvader_helpdesk:
+  modules:
+    - shopinvader_helpdesk
+    - shopinvader_helpdesk_sale_return
+  src: https://github.com/akretion/odoo-shopinvader 14.0-add-shopinvader_helpdesk
+
+shopinvader-payment:
+  modules:
+    - invader_payment
+    - invader_payment_stripe
+    - shopinvader_payment
+    - shopinvader_payment_stripe
+  remotes:
+    ak: https://github.com/akretion/odoo-shopinvader-payment
+  merges:
+    - ak 14.0-stripe-asynchronous-flow-manual-method-types
+    - ak f0756bd87d91a3619830f4ee9d4773d766226320 # [FIX] call on_transaction_done in the payment success webhook
+    - ak 14.0-fix-shopinvader-payment-multi-transactions # Fix transaction amount for multiple transactions
+    - ak refs/pull/3/head # Add preferred_locale parameter for klarna and bancontact payment type
+
+shopinvader-payment-manual:
+  modules:
+    - invader_payment_manual # for shopinvader_payment_gift_card tests
+    - shopinvader_payment_manual # for shopinvader_payment_gift_card tests
+  src: https://github.com/shopinvader/odoo-shopinvader-payment 14.0
+
+shopinvader-payment-gift-card:
+  modules:
+    - shopinvader_payment_gift_card
+  src: https://github.com/akretion/odoo-shopinvader-payment 14.0_ADD_shopinvader_payment_gift_card-refactor
+
+server-auth:
+  modules:
+    - auth_api_key
+    - auth_jwt
+  remotes:
+    oca: https://github.com/OCA/server-auth
+    ak: https://github.com/akretion/server-auth
+  merges:
+    - oca 14.0
+    - oca refs/pull/626/head # Fix validation loop
+    - ak 14.0-auth-jwt-email-create-partner-strategy # refs/pull/346/head closed # Add email_create partner strategy to auto create guests
+
+server-auth-oidc:
+  modules:
+    - auth_oidc
+  src: https://github.com/akretion/server-auth 14.0-mig-auth_oidc
+
+rest-framework:
+  modules:
+    - base_rest
+    - base_rest_abstract_attachment
+    - base_rest_attachment
+    - base_rest_auth_api_key
+    - base_rest_auth_jwt
+    - base_rest_datamodel
+    - base_rest_pydantic
+    - datamodel
+    - extendable
+    - pydantic
+    - rest_log
+  remotes:
+    oca: https://github.com/OCA/rest-framework
+    ak: https://github.com/akretion/rest-framework
+  merges:
+    - oca 14.0
+    - ak 14.0-add-base_rest_abstract_attachment # https://github.com/OCA/rest-framework/pull/242
+
+server-backend:
+  modules:
+    - base_user_role
+  src: https://github.com/OCA/server-backend 14.0
+
+search-engine:
+  modules:
+    - connector_elasticsearch
+    - connector_search_engine
+  remotes:
+    oca: https://github.com/OCA/search-engine
+    ak: https://github.com/akretion/search-engine
+  merges:
+    - oca 14.0
+    - ak 14.0-connector_search_engine-fix-compute-sync_state # refs/pull/129/head closed # binding reactivation sync_state
+    - ak 14.0-connector_se-chain-queue # https://github.com/OCA/search-engine/pull/139
+    - ak 14.0-connection_se_elastic-raise-when-no-host # https://github.com/OCA/search-engine/pull/138
+
+noukies:
+  modules:
+    - noukies_account_automatic_entry
+    - noukies_account_financial_report
+    - noukies_accounting_base
+    - noukies_attribute
+    - noukies_auth_jwt_clean_old_guests
+    - noukies_b2b_sale_import
+    - noukies_b2b_sale_import_rest
+    - noukies_b2c_return_external_operator
+    - noukies_barcodes_generator_with_rule
+    - noukies_bi_report
+    - noukies_bi_report_custom_attributes
+    - noukies_book_fashion
+    - noukies_custom_email
+    - noukies_custom_pim
+    - noukies_custom_reports
+    - noukies_custom_shopinvader
+    - noukies_eft_carriers
+    - noukies_eft_logistics_connector
+    - noukies_eft_logistics_service
+    - noukies_feeds_helpers
+    - noukies_helpdesk_base
+    - noukies_helpdesk_return_email
+    - noukies_klaviyo_connector
+    - noukies_partner_attributes
+    - noukies_partner_base
+    - noukies_partner_navision_attributes
+    - noukies_partner_ref_navision
+    - noukies_pos_backend_partner_views
+    - noukies_pos_base
+    - noukies_pricelist_assortment_base
+    - noukies_pricelist_base
+    - noukies_product_base
+    - noukies_product_categories
+    - noukies_product_cost
+    - noukies_product_custom_attributes
+    - noukies_product_default_code
+    - noukies_product_images
+    - noukies_product_packaging_custom_attributes
+    - noukies_product_stock_report
+    - noukies_product_web_publishing
+    - noukies_purchase_base
+    - noukies_report
+    - noukies_sale_automatic_workflow_base
+    - noukies_sale_base
+    - noukies_sale_channel
+    - noukies_sale_channel_eft_channel
+    - noukies_sale_channel_marketplace
+    - noukies_sale_import_amazon
+    - noukies_sale_import_base
+    - noukies_sale_order_qty_policy
+    - noukies_security
+    - noukies_shopinvader_eft_channel
+    - noukies_shopinvader_product_custom_attributes
+    - noukies_shopinvader_product_images
+    - noukies_shopinvader_product_silhouette
+    - noukies_shopinvader_storelocator_address
+    - noukies_stock_base
+    - noukies_stock_custom_attributes
+    - noukies_syncer
+    # was developped for a new logiqtics provider but maybe used when migrating
+    # the EFT connector in order to use wms_connector instead of the custom one
+    # - noukies_wms_connector
+  src: git@github.com:akretion/noukies-modules.git 14.0
+
+noukies-belotus:
+  modules:
+    - belotus
+    - belotus_eft
+    - belotus_giftcard_swap
+    - belotus_inventory_swap
+    - belotus_ir_property_swap
+    - belotus_sale_purchase_swap
+    - belotus_shopinvader_swap
+  src: git@github.com:akretion/noukies-modules.git 14.0
+
+noukies-public:
+  modules:
+    - account_invoice_user_id
+    - account_move_mirakl_import
+    - account_report_iso_week_numbers
+    - attribute_option_unique_key
+    - auth_jwt_clean_old_guests
+    - base_report_iso_week_numbers
+    - delivery_carrier_access_point_id_format
+    - delivery_carrier_has_access_points
+    - delivery_carrier_info_translatable
+    - eft_carrier_base
+    - eft_logistics_connector_base
+    - eft_logistics_financial_risk
+    - eft_logistics_metrics
+    - helpdesk_mgmt_partner_primeship
+    - helpdesk_mgmt_partner_value
+    - landed_cost_harmonized_system
+    - landed_cost_product_variant_harmonized_system
+    - partner_company_group_domain
+    - partner_contest_answer
+    - partner_delivery_instructions
+    - partner_family_member
+    - partner_guess_lang
+    - partner_status
+    - partner_status_security_group
+    - partner_storelocator_address
+    - partner_value_base
+    - pattern_import_export_type
+    - pos_backend_partner_coupon
+    - pos_backend_partner_primeship
+    - pos_bigger_date_on_receipt
+    - pos_coupon
+    - pos_email_ticket_with_margin
+    - pos_sale_order_coupon
+    - pos_sale_order_email_ticket_with_margin
+    - product_attribute_unique_key
+    - product_family_category
+    - product_google_category
+    - product_harmonized_system_long_description
+    - product_harmonized_system_tax_rate
+    - product_mass_attribute_search_and_replace
+    - product_mass_create_from_import
+    - product_mass_duplicate_job
+    - product_matrix_select_initially_focused_input
+    - product_pricelist_assortment_batch_update
+    - product_pricelist_fast
+    - product_silhouette
+    - product_size_category
+    - product_supplierinfo_for_customer_product_barcode
+    - product_template_translation_import_helper
+    - product_variant_attribute_group
+    - product_variant_harmonized_system_code
+    - product_variant_harmonized_system_tax_rate
+    - purchase_container
+    - purchase_report_iso_week_numbers
+    - sale_automatic_workflow_bind_shopinvader_partner
+    - sale_automatic_workflow_copy_on_return
+    - sale_automatic_workflow_eft_logistics
+    - sale_automatic_workflow_ensure_invoice_delivered
+    - sale_channel_automatic_workflow
+    - sale_channel_marketplace
+    - sale_coupon_allow_rewards_only_invoices
+    - sale_coupon_chainable_discounted_price_total
+    - sale_coupon_discounted_price_total
+    - sale_coupon_discounted_price_total_order_discount_fast_change_ui
+    - sale_coupon_display_coupon_on_sale
+    - sale_coupon_invoice_reserved
+    - sale_coupon_limit_only_customer
+    - sale_coupon_noukies
+    - sale_coupon_reserved_proforma_invoice
+    - sale_coupon_skip_free_products
+    - sale_delivery_carrier_access_point
+    - sale_discount_display_amount_reserved_proforma_invoice
+    - sale_order_mass_price_update_at_date
+    - sale_order_ref_as_receivable_ref
+    - sale_order_show_payments
+    - sale_product_pricelist_assortment_conditional
+    - sale_product_pricelist_conditional
+    - sale_report_iso_week_numbers
+    - sale_reserved_proforma_invoice
+    - sale_stock_clean_obsolete
+    - sale_stock_inverse_picking_on_negative_qty
+    - sale_stock_inverse_picking_on_negative_qty_procurement_jit
+    - se_binding_batch_size_recompute_override
+    - shopinvader_add_note_to_cart
+    - shopinvader_add_utm_to_cart
+    - shopinvader_assortment_stock_exclude_location
+    - shopinvader_cart_restore
+    - shopinvader_category_media
+    - shopinvader_category_media_language
+    - shopinvader_configurator_cart_transfer
+    - shopinvader_customer_delivery_product_stock_resupply_qty_date
+    - shopinvader_customer_note
+    - shopinvader_delivery_carrier_has_access_points
+    - shopinvader_delivery_carrier_packages_tracking
+    - shopinvader_multiple_cart
+    - shopinvader_partner_autobind
+    - shopinvader_partner_contact_birthdate
+    - shopinvader_partner_contest_answer
+    - shopinvader_partner_family_member
+    - shopinvader_partner_primeship
+    - shopinvader_product_media_language
+    - shopinvader_product_qty_per_packaging_type
+    - shopinvader_product_silhouette_price
+    - shopinvader_product_size_category
+    - shopinvader_product_state
+    - shopinvader_product_stock_exclude_location
+    - shopinvader_product_stock_resupply_qty_date
+    - shopinvader_product_variant_attribute_group
+    - shopinvader_sale_delivery_carrier_access_point
+    - shopinvader_sale_delivery_state
+    - shopinvader_storelocator_address
+    - shopinvader_target2sell_connector
+    - shopinvader_trustpilot_delivery_email
+    - stock_change_picking_type
+    - stock_picking_client_order_ref
+    - stock_picking_estimate_value_discounted_order_prices
+    - stock_restocking_value_base
+    - stock_resupply_qty_date
+    - storage_file_language
+    - storage_media_language
+    - storage_media_product_language
+    # utiles ??
+    - pattern_export_record_with_context
+    - pattern_export_with_language
+    # was developped for a new logiqtics provider but maybe used when migrating
+    # the EFT connector in order to use wms_connector instead of the custom one
+    # Note : some (or all) of the modules starting with wms should probably
+    # be renamed to not start with wms. To see.
+    # - stock_picking_wms_locked
+    # - sale_automatic_workflow_wms_release_picking_job
+    # - wms_logistics_service
+    # - wms_picking_process
+    # - wms_picking_process_sale_channel
+    # - wms_picking_process_sale_stock
+    # - wms_picking_process_shopinvader
+    # - wms_stock_picking_state
+    # - wms_stock_picking_state_batch
+    # - wms_stock_picking_state_batch_delivery
+    # - wms_stock_picking_state_batch_picking_process
+    # - wms_stock_picking_state_batch_purchase_container
+    # - wms_stock_picking_state_locked
+    # - wms_stock_picking_state_picking_process
+    # - wms_stock_picking_state_picking_process_delivery
+  src: git@github.com:akretion/noukies-modules.git 14.0
+
+noukies-public-peppol:
+  modules:
+    - account_edi_proxy_client_peppol_environment
+    - account_edi_ubl_cii_cash_discount
+    - sale_automatic_workflow_invoice_peppol
+  src: git@github.com:akretion/noukies-modules.git peppol-env
+
+noukies-sale_coupon_excluded_primeship_activation_product:
+  modules:
+    - sale_coupon_excluded_primeship_activation_product
+  src: git@github.com:akretion/noukies-modules.git 14-fix-primeship-to-invoice
+
+
+odoo-import-helper-storage_image:
+  modules:
+    - storage_image_import
+    - storage_image_product_import
+  src: https://github.com/akretion/odoo-import-helper 14.0-mig-storage_image_product_import
+
+odoo-import-helper:
+  modules:
+    - account_import_helper
+  src: https://github.com/akretion/odoo-import-helper 14.0
+
+# Sale Import Base backported from V16
+# -------------------------------------
+sale-channel:
+  modules:
+    - sale_channel_partner
+  src: https://github.com/akretion/sale-import 14.0
+
+# https://github.com/OCA/queue/pull/739
+queue-job_chunk:
+  modules:
+    - queue_job_chunk
+  src: https://github.com/akretion/queue 14-add-queue-job-chunk-backport-v16
+
+# https://github.com/akretion/sale-import/pull/93
+sale-channel_new_fields:
+  modules:
+    - sale_channel
+  src: https://github.com/akretion/sale-import 14-sale-channel-add-type-company
+
+# https://github.com/akretion/sale-import/pull/95
+sale-channel-import_base:
+  modules:
+    - sale_import_base
+  src: https://github.com/akretion/sale-import 14-sale-import-base-backport-v16-datamodel
+
+# -------------------------------------
+
+# Needs sale_import_base backported from V16
+# Note that the used branch is a pending PR on 14-sale-import-amazon-backportv16
+sale-import-amazon:
+  modules:
+    - sale_import_amazon_base
+    - sale_import_amazon_vendor
+  src: https://github.com/akretion/sale-import 14.0-imp-sale-import-amazon-add-date-filtering-type
+
+helpdesk:
+  modules:
+    - helpdesk_mgmt
+    - helpdesk_mgmt_rating
+  remotes:
+    oca: https://github.com/OCA/helpdesk
+    ak: https://github.com/akretion/helpdesk
+  merges:
+    - oca 14.0
+    - ak 14.0-helpdesk_mgmt_add_partner_lang
+
+helpdesk-reopen:
+  modules:
+    - helpdesk_mgmt_reopen
+  src: https://github.com/akretion/helpdesk 14.0-mig-helpdesk_reopen
+  # oca : refs/pull/615/
+
+helpdesk-rest-api:
+  modules:
+    - helpdesk_mgmt_rest_api
+  src: https://github.com/akretion/helpdesk 14.0-add-rest_api
+
+helpdesk-sale:
+  modules:
+    - helpdesk_mgmt_sale
+    - helpdesk_mgmt_sale_return
+  src: https://github.com/akretion/helpdesk 14.0-helpdesk_sale
+
+pos-backend-partner:
+  modules:
+    - pos_backend_partner
+  src: https://github.com/akretion/pos 14.0-mig-pos_backend_partner-rebased
+  # - oca refs/pull/575/head
+
+pos-remove-pos-category:
+  modules:
+    - pos_remove_pos_category
+  src: https://github.com/akretion/pos 14.0-mig-pos_repove_pos_category-rebased
+  # - oca refs/pull/575/head
+
+pos-require-customer:
+  modules:
+    - pos_require_customer # TODO: migrate to pos_customer_required
+  src: https://github.com/akretion/pos 14.0-add-pos_require_customer
+  # - oca refs/pull/583/head
+
+pos-gift-cards:
+  modules:
+    - pos_gift_card
+  src: https://github.com/akretion/pos 14.0-add-pos_gift_card
+
+pos-pricelist-show-discount:
+  modules:
+    - pos_pricelist_show_discount
+  src: https://github.com/akretion/pos 14.0-add-pos_show_discount_from_pricelist
+
+pos-no-preload:
+  modules:
+    - pos_no_preload_product_image
+  src: https://github.com/akretion/pos 14.0-pos_no_preload_product_image
+
+pos:
+  modules:
+    #- pos_customer_display
+    - pos_backend_communication
+    - pos_escpos_status
+    - pos_no_cash_bank_statement
+    - pos_payment_terminal
+    - pos_product_display_default_code
+    - pos_product_template
+    - pos_receipt_hide_price
+    - pos_report_session_summary
+    - pos_show_config_name
+    - pos_show_discount_percentage
+  remotes:
+    oca: https://github.com/OCA/pos
+    ak: https://github.com/akretion/pos
+  merges:
+    - oca 14.0
+    - ak 14.0-pos_receipt_hide_price-fix-visible-taxes # refs/pull/920/merge closed # Taxes being shown in pos_receipt_hide_price
+    - ak 14.0-pos_show_discount_percentage # refs/pull/921/merge closed # Show discount percentage
+
+pos-sale-order:
+  modules:
+    - pos_partial_payment
+    - pos_sale_order
+    - pos_sale_order_analytic_by_config
+    - pos_sale_order_debug
+    - pos_sale_order_delivery
+    - pos_sale_order_gift_card
+    - pos_sale_order_hr
+    - pos_sale_order_load
+    - pos_sale_order_no_payment
+    - pos_sale_order_reference
+  remotes:
+    ak: https://github.com/akretion/pos-sale-order
+  merges:
+    - ak 14.0
+    - ak 14.0-fix-receipt-printing
+    - ak 14.0-imp-delivery-backorder-merged-with-14.0-pos_sale_order_delivery-fix-delivery-all-multi-move-line
+    - ak 14.0-fix-compute_tax_id
+    - ak refs/pull/47/head # 14.0-add_analytic_by_account
+    - ak refs/pull/49/head # 14.0-add-pos_sale_order_hr
+    - ak refs/pull/50/head # https://github.com/akretion/pos-sale-order/pull/50
+    - ak 14.0-pos_sale_order_gift_card
+    - ak 14.0-fix-cash-rounding-even-in-grouped-invoices # 14.0-fix-cash-rounding
+    - ak 14.0-fix-send-receipt-by-email
+    - ak 14.0-pos_sale_order-final-invoices # Refunds and invoices
+
+social:
+  modules:
+    - mail_debrand
+  src: https://github.com/OCA/social 14.0
+
+intrastat-extrastat:
+  modules:
+    - intrastat_base
+    - intrastat_product
+    - product_harmonized_system
+    - product_harmonized_system_delivery
+    - product_harmonized_system_stock
+  src: https://github.com/OCA/intrastat-extrastat 14.0
+
+reporting-engine:
+  modules:
+    - report_xlsx
+    - report_xlsx_helper
+  src: https://github.com/OCA/reporting-engine 14.0
+
+# ACCOUNTING
+
+account-reconcile:
+  modules:
+    - account_mass_reconcile
+    - account_move_base_import
+    - account_move_line_reconcile_manual
+    - account_reconcile_restrict_partner_mismatch
+    - account_reconciliation_widget
+  src: https://github.com/OCA/account-reconcile 14.0
+
+account-closing:
+  modules:
+    - account_cutoff_accrual_picking
+    - account_cutoff_base
+    - account_cutoff_start_end_dates
+    - account_invoice_start_end_dates
+  src: https://github.com/OCA/account-closing 14.0
+
+account-closing-account_cutoff_accrual_subscription:
+  modules:
+    - account_cutoff_accrual_subscription
+  src: https://github.com/OCA/account-closing 14.0
+
+account-closing-account_multicurrency_revaluation:
+  modules:
+    - account_multicurrency_revaluation
+  src: https://github.com/OCA/account-closing 14.0
+
+account-financial-tools:
+  modules:
+    - account_chart_update
+    - account_fiscal_position_vat_check
+    - account_invoice_constraint_chronology
+    - account_lock_date_update
+    - account_menu
+    - account_move_name_sequence
+    - account_move_template
+  src: https://github.com/OCA/account-financial-tools 14.0
+
+account-finacial-tools-asset-mngmt:
+  modules:
+    - account_asset_management
+  src: https://github.com/OCA/account-financial-tools 14.0
+
+account-financial-tools-lock-move:
+  modules:
+    - account_permanent_lock_move
+  src: https://github.com/akretion/account-financial-tools 14-rewrite-account_permanent_lock_move
+  # refs/pull/1271/head # account_permanent_lock_move
+
+account-financial-tools_account_partner_required:
+  modules:
+    - account_partner_required
+  src: https://github.com/akretion/account-financial-tools 14-mig-account_partner_required
+  # refs/pull/1087/head
+
+account-financial-reporting:
+  modules:
+    - account_financial_report
+    - partner_statement
+  src: https://github.com/OCA/account-financial-reporting 14.0
+
+account-analytic:
+  modules:
+    - account_analytic_required
+    - pos_analytic_by_config
+  src: https://github.com/OCA/account-analytic 14.0
+
+account-move-import:
+  modules:
+    - account_move_csv_import
+  src: https://github.com/akretion/account-move-import 14.0
+
+account-invoicing:
+  modules:
+    - account_invoice_merge
+    - account_invoice_transmit_method
+    - product_supplierinfo_for_customer_invoice
+    - stock_picking_invoicing
+  src: https://github.com/OCA/account-invoicing 14.0
+
+account-invoice-reporting:
+  modules:
+    - account_invoice_report_utm_campaign # renamed account_invoice_report_utm from V15
+  src: https://github.com/OCA/account-invoice-reporting 14.0
+
+account-payment:
+  modules:
+    - account_cash_discount_base
+    - account_cash_discount_payment
+    - account_payment_term_extension
+  src: https://github.com/OCA/account-payment 14.0
+
+account-payment-cash-discount-write-off:
+  modules:
+    - account_cash_discount_reconcile_write_off
+  src: https://github.com/akretion/account-payment 14.0-cash-discount-reconcile-write-off
+
+account-payment-gift-invoice-refund:
+  modules:
+    - account_gift_card_invoice_refund
+  remotes:
+    oca: https://github.com/OCA/account-payment
+    ak: https://github.com/akretion/account-payment
+  merges:
+    - oca 14.0
+    - ak 14.0_ADD_account_gift_card_invoice_refund # refs/pull/485/head closed # account_gift_card_invoice_refund
+
+account-payment-gift-card:
+  modules:
+    - account_payment_gift_card
+  src: https://github.com/akretion/account-payment 14.0_ADD_account_gift_card_payment-refactor
+
+account-peppol-backport:
+  modules:
+    # - account_peppol_backport
+    - account_peppol_partner
+    - account_peppol_send_format_odoo
+    - account_peppol_send_queue_job
+    - account_edi_ubl_cii_tax_extension
+    - account_edi_proxy_client_peppol
+  src: https://github.com/acsone/odoo-peppol-backport 14.0
+
+
+account-peppol-backport-backport-naptr:
+  modules:
+    - account_peppol_backport
+  src: https://github.com/akretion/odoo-peppol-backport 14.0-account_peppol_backport-naptr
+
+
+credit-control:
+  modules:
+    - account_credit_control
+    - account_financial_risk
+    - account_invoice_overdue_reminder
+    - account_invoice_overdue_warn
+    - account_invoice_overdue_warn_sale
+    - sale_financial_risk
+  remotes:
+    oca: https://github.com/OCA/credit-control
+    ak: https://github.com/akretion/credit-control
+  merges:
+    - oca 14.0
+    - ak 14.0-fix-sale_financial_risk-orderby # refs/pull/244/head closed # fix psycopg2 "could not find pathkey item to sort"
+
+bank-payment:
+  modules:
+    - account_banking_mandate
+    - account_banking_pain_base
+    - account_banking_sepa_credit_transfer
+    - account_banking_sepa_direct_debit
+    - account_payment_mode
+    - account_payment_order
+    - account_payment_order_grouped_output
+  src: https://github.com/OCA/bank-payment 14.0
+
+bank-payment-partner:
+  modules:
+    - account_payment_partner
+  src: https://github.com/akretion/bank-payment 14.0-account_payment_partner-backport-comput-partner-bank-id-from16
+
+bank-statement-import:
+  modules:
+    - account_statement_import
+    - account_statement_import_base
+    - account_statement_import_online
+    - account_statement_import_online_ponto
+  src: https://github.com/OCA/bank-statement-import 14.0
+
+ddmrp:
+  modules:
+    - ddmrp
+    - stock_buffer_route
+  src: https://github.com/oca/ddmrp 14.0
+
+mrp:
+  modules:
+    - mrp_bom_location
+    - mrp_multi_level
+    - mrp_warehouse_calendar
+  src: https://github.com/oca/manufacture 14.0
+
+# to see if we can use base_generate_code
+# in sale_coupon_custom_code_format
+sale-promotion:
+  modules:
+    - base_sale_coupon_chainable
+    - coupon_limit
+    - sale_coupon_apply_on_domain
+    - sale_coupon_auto_add_free_products
+    - sale_coupon_chainable
+    - sale_coupon_chainable_apply_on_domain
+    - sale_coupon_chainable_deferred_coupon_dedup
+    - sale_coupon_chainable_global_skip_discounted_products
+    - sale_coupon_cumulative_global_discount
+    - sale_coupon_custom_code_format
+    - sale_coupon_deferred_coupon_dedup
+    - sale_coupon_global_skip_discounted_products
+    - sale_coupon_invoice_delivered
+    - sale_coupon_invoice_delivered_apply_on_domain
+    - sale_coupon_invoice_delivered_chainable
+    - sale_coupon_invoice_delivered_global_skip_discounted_products
+    - sale_coupon_limit
+    - sale_coupon_order_line_link
+  remotes:
+    oca: https://github.com/OCA/sale-promotion
+    ak: https://github.com/akretion/sale-promotion
+  merges:
+    - oca 14.0
+    - oca refs/pull/188/head # sale_coupon_custom_code_format
+    - oca refs/pull/189/head # sale_coupon_apply_on_domain
+    - oca refs/pull/190/head # sale_coupon_global_skip_discounted_products
+    - oca refs/pull/191/head # sale_coupon_cumulative_global_discount
+    - oca refs/pull/192/head # sale_coupon_deferred_coupon_dedup
+    - oca refs/pull/193/head # base_sale_coupon_chainable, sale_coupon_chainable
+    - oca refs/pull/194/head # sale_coupon_chainable_* glues
+    - oca refs/pull/195/head # sale_coupon_auto_add_free_products
+    - ak 14.0-sale_coupon_invoice_delivered
+    - ak 14.0-sale_coupon_invoice_delivered_apply_on_domain
+    - ak 14.0-sale_coupon_invoice_delivered_chainable
+    - ak 14.0-sale_coupon_invoice_delivered_global_skip_discounted_products
+
+sale-promotion-giftcard:
+  modules:
+    - gift_card
+  src: https://github.com/akretion/sale-promotion 14.0_ADD_gift_card-refactor
+#    - oca refs/pull/45/head # gift_card
+
+mis-builder:
+  modules:
+    - mis_builder
+    - mis_builder_budget
+  src: https://github.com/oca/mis-builder 14.0
+
+l10n-belgium:
+  modules:
+    - account_statement_import_coda
+    - l10n_be_intrastat_product
+  src: https://github.com/OCA/l10n-belgium 14.0
+
+noviat-apps:
+  modules:
+    - account_tax_code
+    - l10n_account_translate_config
+    - l10n_be_coa_multilang
+    - web_tree_decoration_underline
+  remotes:
+    noviat: https://github.com/Noviat/noviat-apps
+    ak: https://github.com/akretion/noviat-apps-fork
+  merges:
+    - noviat 14.0
+    - ak 14.0-l10n_be_coa_multilang # Recursion fix
+
+sale-configurator:
+  modules:
+    - sale_configurator_base
+    - sale_configurator_option
+    - sale_configurator_option_message
+    - shopinvader_sale_configurator_option
+    - shopinvader_sale_configurator_option_message
+  remotes:
+    ak: https://github.com/akretion/sale-configurator
+  merges:
+    - ak 14.0
+    - ak refs/pull/24/head # shopinvader_sale_configurator_option
+    - ak refs/pull/29/head # sale_configurator_option_message, shopinvader_sale_configurator_option_message
+    - ak refs/pull/42/head # sale_configurator_base: Do not prevent qty edition in normal case
+    - ak 14.0-fix-partner_id-warning-old-based # Rebase of refs/pull/52/head: Duplicate string warnings
+
+odoo-usability:
+  modules:
+    - base_usability
+    - eradicate_quick_create
+    - pos_usability
+    - product_usability
+    - purchase_stock_usability
+    - purchase_usability
+    - sale_stock_usability
+    - sale_usability
+    - stock_valuation_xlsx
+  src: https://github.com/akretion/odoo-usability 14.0
+
+odoo-usability-sale-partner-shipping-id-domain:
+  modules:
+    - sale_partner_shipping_invoice_domain
+  src: https://github.com/akretion/odoo-usability 14.0-sale_partner_shipping_id_domain
+
+odoo-usability-account-usability:
+  modules:
+    - account_usability
+  remotes:
+    ak: https://github.com/akretion/odoo-usability
+  merges:
+    - ak 14.0
+    - ak 14.0-account-usability-has-discount-ambiguity
+
+calendar:
+  modules:
+    - google_calendar_hide_credentials
+  remotes:
+    oca: https://github.com/OCA/calendar
+    ak: https://github.com/akretion/calendar
+  merges:
+    - oca 14.0
+    - ak 14.0-google_calendar_archive # refs/pull/22/head closed # google_calendar_hide_credentials
+
+edi:
+  modules:
+    - account_einvoice_generate
+    - base_ubl
+    - base_ubl_payment
+    - pdf_helper
+  src: https://github.com/OCA/edi 14.0
+
+community-data-files:
+  modules:
+    - account_payment_unece
+    - account_tax_unece
+    - base_unece
+    - uom_unece
+  src: https://github.com/OCA/community-data-files 14.0
+
+# not yet frozen
+
+# was used for a new logiqtics provider but maybe used when migrating
+# the EFT connector in order to use wms_connector instead of the custom one
+# wms_connector:
+#   modules:
+#     - wms_connector
+#     - wms_connector_picking_batch
+#   src: https://github.com/akretion/wms 14.0-wms_connector
+
+support:
+  modules:
+    - project_api_client
+  src: https://github.com/akretion/support 14.0
+
+partner-module-information:
+  modules:
+    - module_info_push
+  src: https://github.com/akretion/partner-module-information 14.0

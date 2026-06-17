@@ -101,7 +101,7 @@ class TestFilterLocalModule:
         repo_info = _make_repo_info(modules=["local_mod", "remote_mod"], paths=local_paths)
         rp = _make_repo_processor(tmp_path, repo_info)
 
-        result = rp.filter_local_module(["local_mod", "remote_mod"], local_paths)
+        result = rp.filter_local_module(["local_mod", "remote_mod"], local_paths, {})
         assert "local_mod" not in result
         assert "remote_mod" in result
 
@@ -110,14 +110,14 @@ class TestFilterLocalModule:
         repo_info = _make_repo_info(modules=["missing_mod"], paths=local_paths)
         rp = _make_repo_processor(tmp_path, repo_info)
 
-        result = rp.filter_local_module(["missing_mod"], local_paths)
+        result = rp.filter_local_module(["missing_mod"], local_paths, {})
         assert "missing_mod" in result
 
     def test_filter_local_module_no_local_paths(self, tmp_path: Path) -> None:
         repo_info = _make_repo_info(modules=["mod1", "mod2"])
         rp = _make_repo_processor(tmp_path, repo_info)
 
-        result = rp.filter_local_module(["mod1", "mod2"], {})
+        result = rp.filter_local_module(["mod1", "mod2"], {}, {})
         assert result == ["mod1", "mod2"]
 
 

@@ -1,0 +1,385 @@
+account-analytic:
+  origin:
+    '14.0': 4dd40b17ecc42c6f13ba7bcecbfad0479c7c2a76
+account-closing:
+  origin:
+    '14.0': 09da210cbe6f35b726bd533eef2a8348d082fdb0
+account-closing-account_cutoff_accrual_subscription:
+  origin:
+    '14.0': 09da210cbe6f35b726bd533eef2a8348d082fdb0
+account-closing-account_multicurrency_revaluation:
+  origin:
+    '14.0': 09da210cbe6f35b726bd533eef2a8348d082fdb0
+account-finacial-tools-asset-mngmt:
+  origin:
+    '14.0': 6dbe0f6a38e17fd0f23e01b04369bae9a899d551
+account-financial-reporting:
+  origin:
+    '14.0': c89b720c735123b554db196eab2b596232c60e2a
+account-financial-tools:
+  origin:
+    '14.0': 6dbe0f6a38e17fd0f23e01b04369bae9a899d551
+account-financial-tools-lock-move:
+  origin:
+    14-rewrite-account_permanent_lock_move: 9e1ffe955149dbd4333d4294c07a6a080aa08cb2
+account-financial-tools_account_partner_required:
+  origin:
+    14-mig-account_partner_required: 43129ff18a6665e2c94e6d647c307660814a0698
+account-invoicing:
+  origin:
+    '14.0': fbc68ceb5208ac2c3828502f35dc7c1e91e08ad2
+account-move-import:
+  origin:
+    '14.0': 15d779f5625918f0b35af8cee119dc1001301c17
+account-payment:
+  origin:
+    '14.0': 2fa6b886306f96d7ca1abf1a8a4a042bd756960f
+account-payment-cash-discount-write-off:
+  origin:
+    14.0-cash-discount-reconcile-write-off: 346f1569f2f29133dfa7a41da7b18d364f741297
+account-payment-gift-card:
+  origin:
+    14.0_ADD_account_gift_card_payment-refactor: 7ad8ead29e5c6c73da76dd38aaf71fa75d620bd1
+account-payment-gift-invoice-refund:
+  ak:
+    14.0_ADD_account_gift_card_invoice_refund: 405a1aaeb7825637da321ac17ad17734f487307a
+  oca:
+    '14.0': 2fa6b886306f96d7ca1abf1a8a4a042bd756960f
+account-reconcile:
+  origin:
+    '14.0': e56b578aa9185f33a34799fdd16d315f5cb408f5
+bank-payment:
+  origin:
+    '14.0': 1c08bea3c5bbef781b8736d43f71044bcd5e76df
+bank-statement-import:
+  origin:
+    '14.0': 2a69e2e37a2f729f184963c8cf6ec307c5a126d4
+calendar:
+  ak:
+    14.0-google_calendar_archive: 320f7d5ee67509c110e219f35059747bed79a610
+  oca:
+    '14.0': 835959c5b7e959ad0d49091820d921544c4ec505
+community-data-files:
+  origin:
+    '14.0': 397ffa9fc058835bae700c0c9399eb1d39e074f2
+connector:
+  origin:
+    '14.0': 30531a2131ee9cb9168216310f280fae0827771d
+connector-telephony:
+  origin:
+    '14.0': 0a3ca15043ac304e8d8c6cad074334dedcc2a090
+credit-control:
+  ak:
+    14.0-fix-sale_financial_risk-orderby: b2947f29ea2e718412bf3536e240e8cb7e307885
+  oca:
+    '14.0': edf1a0c4b8bd56e140cf6bd426ea8381233e4521
+ddmrp:
+  origin:
+    '14.0': 39f93439bb9395d0b82a373d5e5a862c9aebc089
+delivery-carrier:
+  origin:
+    '14.0': 537c6564b4af12a1fca543f13f25e0440ca85e52
+delivery-carrier_roulier:
+  origin:
+    14.0-delivery-roulier-mondialrelay: 0bff7061fcab5435acad5e7537542b0931089057
+edi:
+  origin:
+    '14.0': 629125c3fcf897a91965495b1fa333e798d28e40
+helpdesk:
+  ak:
+    14.0-helpdesk_mgmt_add_partner_lang: 24952f575f08f6c4243ac5c796114ba121b3cfc8
+  oca:
+    '14.0': d23219ac9a7821262635a1525d4836d64409e001
+helpdesk-reopen:
+  ak:
+    14.0-mig-helpdesk_reopen: fd182947e3a7d916f18d951a4b8a18e71d8a4471
+helpdesk-rest-api:
+  ak:
+    14.0-add-rest_api: 5d2bf4d402f9eea0273afe1c8ad1bec8c82a4345
+helpdesk-sale:
+  ak:
+    14.0-helpdesk_sale: 371edfa6b0103a5e493456537e2459a4ed6b68c5
+intrastat-extrastat:
+  origin:
+    '14.0': fb7610bc68c10aaef3e045708b82d3253b976d55
+knowledge:
+  origin:
+    '14.0': 7bd8c295fa839075ccbb0b36e29b78071daa6002
+l10n-belgium:
+  origin:
+    '14.0': 685f29771d6aeadae7a366f5e1e1af4339273522
+mis-builder:
+  origin:
+    '14.0': f97bd58e9b6f503f977effbc97408d8971e693b2
+mrp:
+  origin:
+    '14.0': 14fa6717ad28e8df1355f4f8f04837f2428d0271
+# do not freeze noukies modules whatever the branch
+# noukies:
+#   origin:
+#     14.0-UNFREEZE: 6b67632c275306fe972f526d821fbb4d3fc9f2f7
+# noukies-public:
+#   origin:
+#     14.0-UNFREEZE: 6b67632c275306fe972f526d821fbb4d3fc9f2f7
+odoo:
+  ak:
+    14.0-fix-pos-newclient-fpos-undefined: c0562321572538d171b8b08329168d94e4758c05
+    14.0-not-more-commit-in-transaction: 05abaf1376fe61a0652b9e1a4824109b3fc748ac
+  odoo:
+    '14.0': c0acceab75c23460c7d9ad6cafcd65ce795cea9f
+odoo-import-helper:
+  origin:
+    '14.0': f1fd4e6a1c7e81d588d3b8d9256210462851177f
+odoo-import-helper-storage_image:
+  origin:
+    14.0-mig-storage_image_product_import: a3657442df4ac15e61f1ad8317621efcb2df4217
+odoo-usability:
+  origin:
+    '14.0': ad8edd00d205f7adb919e33461d4328f2bf04a11
+odoo-usability-account-usability:
+  ak:
+    '14.0': ad8edd00d205f7adb919e33461d4328f2bf04a11
+    14.0-account-usability-has-discount-ambiguity: 955cda6957c897b370d05c7bbb6345cc49f597bf
+odoo-usability-sale-partner-shipping-id-domain:
+  origin:
+    14.0-sale_partner_shipping_id_domain: 8707c2af5d71d6d2a3dbf4dbede9fdffd613db3c
+partner-contact:
+  origin:
+    '14.0': d0954f9bd16e6e7d79df556827c2c483124242e2
+partner-contact_address_default:
+  origin:
+    14.0-fix-partner_contact_address_default: da77c957170b03aaa23f88298ee6cad4b9a8f7cf
+pattern-import-export:
+  origin:
+    '14.0': 63ac1421d851cafbf08625c44cc0b7618fb422c0
+pim:
+  origin:
+    '14.0': cef90119c0bed594bbd0029ef7d65b0dea3c076f
+pos:
+  ak:
+    14.0-pos_receipt_hide_price-fix-visible-taxes: 16d8ee3e4c91433ec58658d3ec37285300a7d7e8
+    14.0-pos_show_discount_percentage: 173a3a053ec3bd80d6fd9327b809e6e467bad210
+  oca:
+    '14.0': 0d0137a7915b0956e09c8f76a5fe18b5bff1d957
+pos-backend-partner:
+  origin:
+    14.0-mig-pos_backend_partner-rebased: 21c6cfbc2c6ddce4e0b94bf4834b51345c7f7d2e
+pos-gift-cards:
+  origin:
+    14.0-add-pos_gift_card: 8c2310d497917b40e8c08079a70eab75498272d7
+pos-no-preload:
+  origin:
+    14.0-pos_no_preload_product_image: 25c9aa468798f841bdc52a67fd55ade27e074443
+pos-pricelist-show-discount:
+  origin:
+    14.0-add-pos_show_discount_from_pricelist: 3936668e281aa63fd6409f290bdd656664eab8b0
+pos-remove-pos-category:
+  origin:
+    14.0-mig-pos_repove_pos_category-rebased: 99f72fd950518c6fc112ceb442222e7336df9897
+pos-require-customer:
+  origin:
+    14.0-add-pos_require_customer: e23c910999d6fad4b4893511bd23f49d9173eaba
+pos-sale-order:
+  ak:
+    '14.0': 964a2a1170fc379ec09be09a2a93eb087cf953c4
+    14.0-fix-cash-rounding-even-in-grouped-invoices: 2f8f98171c018d4528648ef0f1ba71b98b483110
+    14.0-fix-compute_tax_id: 41bcae747c9196ded332398dfb9a02d706680b8c
+    14.0-fix-receipt-printing: e24e546384e6bc907b0cdbfac3842f15706396f3
+    14.0-fix-send-receipt-by-email: f9677e4806f6360948dc41bafb08d12ddf187c9b
+    14.0-imp-delivery-backorder-merged-with-14.0-pos_sale_order_delivery-fix-delivery-all-multi-move-line: 0f086acd30daefab5f12fbce94e55104c574e36d
+    14.0-pos_sale_order-final-invoices: c19a094878332ce8da29cafa6950988e29b0b8d0
+    14.0-pos_sale_order_gift_card: 765ae84de511844c3b70fa0b2ab61c2038da3816
+    refs/pull/47/head: 68b890e99dcb0c5cc6b42aecb1797193e56edd01
+    refs/pull/49/head: 70f9fbf58a72e3e3bd08e89866466370a5abec37
+    refs/pull/50/head: a32359a7d5a5e54879513d249f7328d8afde4898
+product-attribute:
+  origin:
+    '14.0': b377db7617d8d3d4a2ce5cd58e4b5b545ec91ea6
+product-attribute-assortment:
+  origin:
+    '14.0': b377db7617d8d3d4a2ce5cd58e4b5b545ec91ea6
+product-attribute_product_pricelist_revision:
+  origin:
+    '13.0': 86902f96f6e7c29180484283fed69d93ac7d16cf
+product-brand:
+  origin:
+    '14.0': d98569919aa5b4d9c27c69e3ec6f0d5cd4ea661b
+product-variant:
+  origin:
+    '14.0': faddfac83f33d4604333152f10a4156a8b4ea49c
+purchase-workflow:
+  origin:
+    '14.0': 9a2d19de38075ff6a985aa04094315de556925de
+purchase-workflow-13:
+  origin:
+    '13.0': 2db2623145d9f2d209337f863b5e15b8d1ca38ee
+purchase-workflow-freight:
+  ak:
+    14-freight: 8742f8b12cbd4a0ad96540a6359e715077b5e5a6
+  oca:
+    '14.0': 9a2d19de38075ff6a985aa04094315de556925de
+queue:
+  ak:
+    14.0-fix-cancel-speed: cb8d84074d816ae8299ccacda18b2f914851fb70
+  oca:
+    '14.0': 4c824c2f2ba9ad8e1573478020149d67aae63677
+    refs/pull/566/head: 210f95269b469ccd31087f997591bc2b55a8fe27
+reporting-engine:
+  origin:
+    '14.0': 5f69af6f0292622ca731bb992177c6ab10cdea07
+rest-framework:
+  ak:
+    14.0-add-base_rest_abstract_attachment: 76277fd14d757819ad9f20a3df01530c7693c192
+  oca:
+    '14.0': dfc9321032e9508182e4aff1f2e901dc1299a533
+rma:
+  origin:
+    '14.0': 6c64c82f31336fb81490b11b7671e1ce16c39f9d
+sale-configurator:
+  ak:
+    '14.0': b1bc0ef62ea2fff7724d4119df608372d585aa26
+    14.0-fix-partner_id-warning-old-based: 31f57e681888ff7414f2011c8b9e2f27a68b4257
+    refs/pull/24/head: f4e27c84ef1fa891f725f2e44e647bcb11786044
+    refs/pull/29/head: 3582c8905bebdcd1ed9e3ed93c63d702b87d55fc
+    refs/pull/42/head: 0a5093b1b65b98943049ab947de184ebea3f6b45
+sale-import:
+  origin:
+    '14.0': 259679fe8c40910719c4cd51bfc41ccaa2a1805d
+sale-promotion:
+  ak:
+    14.0-sale_coupon_invoice_delivered: abf4ec838d17063a7b7ec3aa87d6c50eaeadf66d
+    14.0-sale_coupon_invoice_delivered_apply_on_domain: f525ce9490d3c64510693e77d5848365f423436c
+    14.0-sale_coupon_invoice_delivered_chainable: 24b547edc6b1c95aa9418e224955f902df2d916e
+    14.0-sale_coupon_invoice_delivered_global_skip_discounted_products: e097876e32a60490b10dcedcb34755299d4ef5ee
+  oca:
+    '14.0': 86aac6e3bc5de352289d8360d9a0032210a9b9c8
+    refs/pull/188/head: 0d09e5ae99b3b53e373a0062e13055ae3cde0cdd
+    refs/pull/189/head: 42c25cb5ea3be3e66de5adff0852d48b28222424
+    refs/pull/190/head: 394818294f2e99c8721c193e116cb489d5f889e5
+    refs/pull/191/head: 42a2cd96aa793788d43f3365da3d8721655a22ae
+    refs/pull/192/head: f5e0e3816a009ab8aaf2b71121ca024f9effbaa0
+    refs/pull/193/head: a814cd433da4e4ed4ac8347cce9922dd1a596fc6
+    refs/pull/194/head: 743a451e70bc4de991cdae62dfc5ba8e159cde06
+    refs/pull/195/head: 69d8f0da84bc5f6a93c6a763fb0a429a616578a9
+sale-promotion-giftcard:
+  origin:
+    14.0_ADD_gift_card-refactor: 4a8ef2737120dc6365137dc9617011889ea7e0d6
+sale-workflow:
+  ak:
+    14.0-sale_discount_display_amount-add-untaxed-amount_with_delay: 7d61a34293a797099b75b8c062f04f3b23d2f448
+    14.0-sales_partner_primeship-add_check_expired_primeships: 5cdaf5696c84d36bace6c6e02a61bafbe8ee4f9b
+  oca:
+    '14.0': 4a1a19e8de8cd137cc5f6facdb60304d09a68560
+    refs/pull/2221/head: 6f24f5cb389f4d3363d836c5207ebe4a6b89c733
+sale-workflow-without_price:
+  origin:
+    14.0-sale-order-report-without-price: 0be4c668f28e72f85d67250744fc93dae9574b51
+sale-workflow_policy:
+  origin:
+    14.0-mig-sale_invoice_policy: b0d7aa263c0faca5118e83da2b262da00d40f45d
+search-engine:
+  ak:
+    14.0-connection_se_elastic-raise-when-no-host: bc3e85e77cd6990adc0329417535647ad87897e3
+    14.0-connector_se-chain-queue: 2ab3cb0ae72d3e50beb38dd0469b532e168b0572
+    14.0-connector_search_engine-fix-compute-sync_state: 7a2de65e5e632c6b6d124099290023d2c5559373
+  oca:
+    '14.0': a2bc2ffafe7696a374f778c9bd797c3f3500b796
+server-auth:
+  ak:
+    14.0-auth-jwt-email-create-partner-strategy: e3c8317cb021693d80e74fc5f92407697489ce6d
+  oca:
+    '14.0': a0ff28d9293e3473255dcb3ef48cda618d56cbc2
+server-auth-oidc:
+  origin:
+    14.0-mig-auth_oidc: 516e2f58aa1f7687858f88402d002950b24af1f2
+server-backend:
+  origin:
+    '14.0': 516daae4803080211ec8d82790eb172a66a2254a
+server-brand:
+  origin:
+    '14.0': f9c7654f34f2ffd5282d33d18646759f76c2b3ab
+server-env:
+  origin:
+    '14.0': 2ba0fa5ccfeca2d515d2ae33704e78f39a1ad555
+server-tools:
+  origin:
+    '14.0': 5c790a21a9da3381f32c7d600c3630a09ae58187
+server-tools-base_view_inheritence:
+  origin:
+    14-mig-base_view_inheritance_extension: 1ea4f749b190aec40559cf2e07ee3f30f72b9da7
+server-tools-onchange_helper:
+  origin:
+    14.0-imp-onchange_helper_firstcall: ee78090b9deaf48d4fde8c0178324f12678ccbd2
+server-tools-sentry:
+  origin:
+    14.0-apm-sentry-rebased: e51ab249300c83b9e8b80adc8f0beb2438cc08a3
+server-ux:
+  origin:
+    '14.0': 6be63704e33451275174a2c9ee371a41f3533dcd
+shopinvader:
+  ak:
+    14.0-fix-address-return-value: dc184132672226616585ee6b7c3bc08007faafdd
+    14.0-fix-sale_confirm_email: 8c129de4a110c982485af249f8090a81b0fa7775
+    14.0-fix-variant-recompute-infinite-loop: 992044f98cbb77743e1190d346fe9617a1c2bdbd
+    14.0-shopinvader-auth-jwt-transfer-cart-merged-with-14.0-shopinvader-optional-sess-cart-id-header: 3e32d4d379d2beab20480edd350feb81dd5663dc
+    14.0-shopinvader-sale-coupon-chainable: db4e9e3aadf89283f5132001ed10a329e06b7fbc
+    14.0-shopinvader-seller-access: cbf2ce53b5f225df97b960c00fbf064d08df3f18
+    14.0-shopinvader_sale_coupon_deferred_coupon_dedup: 83a96c148981344467f9994e1c9e13f5a8814142
+  shopinvader:
+    '14.0': 24db2919264748ae1e0874dff78a74e0e9f4e590
+    refs/pull/1145/head: 845a87277cdc6adfa755c70363f5c62dfc580e9a
+    refs/pull/1150/head: e2c1740f6ac85aa30856c2d2db36633dedf7f3f0
+    refs/pull/1247/head: 9311692d368de69d26390c73281b33ebe81507c0
+    refs/pull/1323/head: aeb51e2165b3e6144d771dd794ead9a0da4ecc9d
+    refs/pull/1355/head: 6aeab483600922410865a00d382a63591fb32efa
+    refs/pull/1362/head: 494b8b2234e43396116f01d639bd2a7182d257fa
+    refs/pull/1363/head: 0fb54f17bec906f9b8f732d9c13cb8d6332ce45a
+shopinvader-customer-delivery:
+  origin:
+    14.0-add_shopinvader_customer_delivery-add-client_order_ref: 244a0a2384b2a8a87e3ad9ddd66433fc8ffea5a2
+shopinvader-gift-card:
+  origin:
+    14.0_ADD_shopinvader_gift_card-refactor: 45da8d373e27ba1896e389f8f672215c0df05a3b
+shopinvader-payment:
+  ak:
+    14.0-fix-shopinvader-payment-multi-transactions: e5fa201e4b1334bb6d4eaca3454810e950b61bcd
+    14.0-stripe-asynchronous-flow-manual-method-types: ab63a04f8927fb1b69ffd667efa7639df53d8dbb
+    refs/pull/2/head: 34effd883ec0816e100520d52be56e3bd8e9346d
+shopinvader-payment-gift-card:
+  origin:
+    14.0_ADD_shopinvader_payment_gift_card-refactor: 4ee83e0417577ef8c33545d2981033842275cd1f
+shopinvader-payment-manual:
+  origin:
+    '14.0': ad8ee05b2b29d194b94b7b68e9869c64175314cf
+shopinvader_helpdesk:
+  origin:
+    14.0-add-shopinvader_helpdesk: 9e0cbc5036fa0440410a76b3b7157694eef15c69
+shopinvader_image:
+  origin:
+    14-fix-image-recompute: 04f1e44a61d3204485b98cee3848e5998cbea047
+shopinvader_sale_order_report_without_price:
+  origin:
+    14.0-sale-order-report-without-price: 317bf8962e5b809afe24010f09d96a0fc4efda65
+social:
+  origin:
+    '14.0': 8571d889923f2014a9295200dfe754cfb9f2352d
+stock-logistics-barcode:
+  origin:
+    '14.0': 945d3995e51356a5d1e281d61ae714c83212c8ba
+stock-logistics-warehouse:
+  origin:
+    '14.0': cfeb7caf1459aab8cd7ef860fd15ae8f697d69c2
+stock-logistics-workflow:
+  ak:
+    14.0-stock_picking_estimate_value: f7509d25ff1c35518d17e13d8efa3ccac4da2cf0
+  oca:
+    '14.0': 92293c26468d2fae4c6ca2d8fe59424a4490a6a4
+storage:
+  origin:
+    '14.0': 143416879fd1619ee5d483e3e133bf7c00d9ab49
+storage_backend_s3:
+  origin:
+    14.0-storage_backend_s3-fix-empty-delete: 70096f4a0f7739345ab9121cd10907b6c7b571c4
+web:
+  origin:
+    '14.0': 86175e8fab920890a1c08b9fa0e0aafdd27938dd

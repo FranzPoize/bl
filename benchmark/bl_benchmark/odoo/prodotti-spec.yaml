@@ -1,0 +1,407 @@
+account-financial-tools:
+    modules:
+        - account_usability
+        - account_dashboard_banner
+    src: https://github.com/OCA/account-financial-tools 18.0
+
+account-fiscal-rule:
+    modules:
+        - account_ecotax
+    remotes:
+      oca: https://github.com/OCA/account-fiscal-rule
+    merges:
+      - oca 18.0
+      - oca refs/pull/559/head # fix account_ecotax invoice_report field order
+
+account-fiscal-rule-sale-ecotax:
+    modules:
+        - account_ecotax_sale
+    src: https://github.com/akretion/account-fiscal-rule 18.0-mig-account_ecotax_sale
+
+account-fiscal-rule-ecotax-report:
+    modules:
+        - account_ecotax_report
+    src:  https://github.com/akretion/account-fiscal-rule 18.0-mig-account_ecotax_report
+
+commission:
+    modules:
+        - commission_oca
+        - account_commission_oca
+        - sale_commission_oca
+        - sale_commission_product_criteria_oca
+    remotes:
+      oca: https://github.com/OCA/commission
+    merges:
+      - oca 18.0
+      - oca refs/pull/653/head # migration of sale_commission_product_criteria_oca
+
+account-payment:
+    modules:
+        - account_payment_method_base
+    src: https://github.com/OCA/account-payment 18.0
+
+account-reconcile:
+    modules:
+        - account_reconcile_model_oca
+        - account_reconcile_oca
+        - account_statement_base
+    src: https://github.com/OCA/account-reconcile 18.0
+
+Ak-cloud-france-oi:
+    modules:
+        - auth_oidc_akretion_data
+        - database_age_cron
+        - attachment_asset_in_db
+    src: https://github.com/akretion/ak-cloud-france-oi 18.0
+
+ak-odoo-incubator-block_confirm_flow:
+    modules:
+        - block_confirm_flow
+    src: https://github.com/akretion/ak-odoo-incubator 16.0-add-block_confirm_flow
+    shell_command_after:
+        - sed -i 's/16\.0/18\.0/' block_confirm_flow/__manifest__.py
+        - git add . && git commit -m "v upgrade"
+
+bank-statement-reconcile-simple:
+    modules:
+        - account_statement_completion_label_simple
+        - account_statement_completion_label_simple_sale
+    src: https://github.com/akretion/bank-statement-reconcile-simple 18.0
+
+bank-statement-import:
+    modules:
+        - account_statement_import_base
+        - account_statement_import_file
+        - account_statement_import_file_reconcile_oca
+        - account_statement_import_ofx
+        - account_statement_import_online
+        - account_statement_import_online_ponto
+    src: https://github.com/OCA/bank-statement-import 18.0
+
+bank-payment-alternative:
+    modules:
+        - account_payment_base_oca
+        - account_payment_base_oca_sale
+        - account_payment_batch_oca_reconcile
+        - account_payment_batch_oca
+        - account_payment_mandate
+        - account_payment_mandate_sale
+        - account_payment_sepa_base
+        - account_payment_sepa_credit_transfer
+        - account_payment_sepa_direct_debit
+    src: https://github.com/OCA/bank-payment-alternative 18.0
+
+credit-control:
+    modules:
+        - account_invoice_overdue_reminder
+    src: https://github.com/OCA/credit-control 18.0
+
+community-data-files:
+    modules:
+        - account_payment_unece
+        - account_tax_unece
+        - base_unece
+        - uom_unece
+    src: https://github.com/OCA/community-data-files 18.0
+
+edi:
+    modules:
+        - account_einvoice_generate
+        - base_facturx
+    src: https://github.com/OCA/edi 18.0
+
+edi-invoice_facturx:
+    modules:
+        - account_invoice_facturx
+    src: https://github.com/akretion/edi 18-account-invoice-facturx-mig2
+
+intrastat-extrastat:
+    modules:
+        - intrastat_base
+        - intrastat_product
+        - product_harmonized_system
+        - product_harmonized_system_delivery
+        - product_harmonized_system_stock
+    src: https://github.com/OCA/intrastat-extrastat 18.0
+
+l10n-france:
+    modules:
+        - account_payment_fr_lcr
+        - l10n_fr_account_invoice_facturx
+        - l10n_fr_department
+        - l10n_fr_chorus_account
+        - l10n_fr_chorus_facturx
+        - l10n_fr_intrastat_product
+        - l10n_fr_siret
+        - l10n_fr_siret_account
+        - l10n_fr_state
+    src: https://github.com/OCA/l10n-france 18.0
+
+mail:
+    modules:
+        - mail_debrand
+    src: https://github.com/OCA/mail 18.0
+
+manufacture:
+    modules:
+        - mrp_bom_component_menu
+        - mrp_production_back_to_draft
+        - mrp_restrict_lot
+        - mrp_sale_info
+    src: https://github.com/OCA/manufacture 18.0
+
+manufacture-config:
+    modules:
+        - mrp_bom_configurable
+    src: https://github.com/akretion/manufacture 18.0-bom-configurable
+
+manufacture-descrip:
+    modules:
+        - mrp_bom_line_description
+    src: https://github.com/akretion/manufacture 18.0-mig-mrp_bom_line_description
+
+manufacture-hierarchy:
+    modules:
+        - mrp_bom_hierarchy
+    src: https://github.com/akretion/manufacture 18.0-mig-mrp_bom_hierarchy
+
+
+odoo:
+    modules:
+        - account
+        - account_payment
+        - account_qr_code_sepa
+        - analytic
+        - auth_oauth
+        - auth_signup
+        - auth_totp
+        - auth_totp_mail
+        - auth_totp_portal
+        - barcodes
+        - barcodes_gs1_nomenclature
+        - base_iban
+        - base_import
+        - base_import_module
+        - base_install_request
+        - base_setup
+        - base_sparse_field
+        - base_vat
+        - bus
+        - calendar
+        - contacts
+        - delivery
+        - delivery_stock_picking_batch
+        - digest
+        - google_gmail
+        - hr_timesheet
+        - hr_work_entry_contract
+        - html_editor
+        - http_routing
+        - iap
+        - iap_mail
+        - l10n_fr
+        - l10n_fr_account
+        - mail
+        - mail_bot
+        - mass_mailing
+        - mrp
+        - mrp_account
+        - mrp_subcontracting
+        - mrp_subcontracting_account
+        - mrp_subcontracting_purchase
+        - onboarding
+        - partner_autocomplete
+        - payment
+        - payment_adyen
+        - payment_aps
+        - payment_asiapay
+        - payment_authorize
+        - payment_buckaroo
+        - payment_custom
+        - payment_demo
+        - payment_flutterwave
+        - payment_mercado_pago
+        - payment_mollie
+        - payment_nuvei
+        - payment_paypal
+        - payment_razorpay
+        - payment_razorpay_oauth
+        - payment_stripe
+        - payment_worldline
+        - payment_xendit
+        - phone_validation
+        - portal
+        - privacy_lookup
+        - product
+        - project
+        - purchase
+        - purchase_mrp
+        - purchase_stock
+        - resource
+        - resource_mail
+        - sale
+        - sale_async_emails
+        - sale_management
+        - sale_mrp
+        - sale_pdf_quote_builder
+        - sale_purchase
+        - sale_purchase_stock
+        - sale_sms
+        - sale_stock
+        - sales_team
+        - sms
+        - stock
+        - stock_account
+        - stock_delivery
+        - stock_picking_batch
+        - stock_sms
+        - uom
+        - utm
+        - web
+        - web_editor
+        - web_tour
+        - website
+    src: https://github.com/odoo/odoo 18.0
+    locales:
+        - fr
+        - en
+
+product-attribute:
+    modules:
+        - product_product_template_link
+    src: https://github.com/OCA/product-attribute 18.0
+
+product-variant:
+    modules:
+        - product_attribute_value_archive
+    src: https://github.com/OCA/product-variant 18.0
+
+purchase-workflow:
+    modules:
+        - purchase_lot
+        - purchase_request
+        - product_supplierinfo_qty_multiplier
+    src: https://github.com/OCA/purchase-workflow.git 18.0
+
+queue:
+    modules:
+        - queue_job
+    src: https://github.com/OCA/queue 18.0
+
+reporting-engine:
+    modules:
+        - report_xlsx
+        - report_xlsx_helper
+    src: https://github.com/OCA/reporting-engine 18.0
+
+reporting-engine-playwright:
+    modules:
+        - report_playwright
+    src: https://github.com/akretion/reporting-engine 18-playwright-engine
+
+delivery:
+    modules:
+        - delivery_auto_refresh
+    src: https://github.com/oca/delivery-carrier 18.0
+
+sale-workflow:
+    modules:
+        - sale_commercial_partner
+        - sale_delivery_state
+        - sale_exception
+        - sale_mrp_bom
+        - sale_order_carrier_auto_assign
+        - sale_order_line_sequence
+        - sale_order_lot_selection
+        - sale_partner_incoterm
+        - sale_tier_validation
+        - sales_team_security
+    src: https://github.com/OCA/sale-workflow 18.0
+
+sale-workflow-mrp:
+    modules:
+        - sale_mrp_bom_configurable
+    src: https://github.com/akretion/sale-workflow 18.0-mig-sale_mrp_bom_configurable
+
+sale-workflow-sale_order_lot_generator:
+    modules:
+        - sale_order_lot_generator
+    src: https://github.com/akretion/sale-workflow 18.0-mig-sale_order_lot_generator
+
+sale-workflow-sale-price-config:
+    modules:
+        - sale_price_config
+        - sale_price_config_ecotax
+    src: https://github.com/akretion/sale-workflow 18.0-sale_price_config
+
+
+sale-workflow-sale-down-payment-term:
+    modules:
+        - sale_down_payment_term
+    src: https://github.com/akretion/sale-workflow 18.0-add-sale-down-payment-term
+
+sale-workflow-sale-payment:
+    modules:
+        - sale_payment
+    src: https://github.com/akretion/sale-workflow 18.0-mig-sale_payment
+
+
+server-auth:
+    modules:
+        - auth_oidc
+        - auth_oidc_environment
+    src: https://github.com/OCA/server-auth 18.0
+
+server-backend:
+    modules:
+        - base_group_backend
+    src: https://github.com/akretion/server-backend 18.0-mig-base_group_backend
+
+server-brand:
+    modules:
+        - portal_odoo_debranding
+    src: https://github.com/OCA/server-brand 18.0
+
+server-tools:
+    modules:
+        - attachment_unindex_content
+        - base_view_inheritance_extension
+        - database_cleanup
+        - sentry
+        - base_exception
+    src: https://github.com/OCA/server-tools 18.0
+
+server-env:
+    modules:
+        - data_encryption
+        - server_environment
+        - server_environment_data_encryption
+        - server_environment_ir_config_parameter
+    src: https://github.com/OCA/server-env 18.0
+
+server-ux:
+    modules:
+        - base_tier_validation
+    src: https://github.com/OCA/server-ux 18.0
+
+stock-logistics-workflow:
+    modules:
+        - stock_restrict_lot
+    src: https://github.com/OCA/stock-logistics-workflow 18.0
+
+stock-logistics-orderpoint:
+    modules:
+        - stock_orderpoint_by_lot
+    src: https://github.com/akretion/stock-logistics-orderpoint stock_orderpoint_by_lot
+
+web:
+    modules:
+        - web_chatter_position
+        - web_environment_ribbon
+        - web_refresher
+        - web_remember_tree_column_width
+        - web_responsive
+        - web_theme_classic
+        - web_tree_many2one_clickable
+        - web_notify
+    src: https://github.com/OCA/web 18.0

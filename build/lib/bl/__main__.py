@@ -15,7 +15,6 @@ from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
-from bl.editable import make_editable
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
@@ -76,12 +75,12 @@ def check_last_version() -> bool:
     l_maj, l_min, l_patch = bl_last_version.split(".")
 
     if c_maj < l_maj or c_min < l_min or c_patch < l_patch:
-        msg = (
-            "[red]Watch out ![/] There is a new bl version you should update "
-            + f"(Yours is {bl.__version__} != Last is {bl_last_version})"
+        out_console.print(
+            """[red]#######################################################[/]
+[red]Watch out ![/] There is a new bl version you should update
+[red]#######################################################[/]
+"""
         )
-        border_msg = "[red]" + "#" * (len(msg) - len("[red][/]")) + "[/]"
-        out_console.print(f"{border_msg}\n{msg}\n{border_msg}\n\n")
 
 
 def setup_logging(log_level: str) -> None:
@@ -137,8 +136,6 @@ def run():
     sub.add_parser("build", parents=[parent_parser], help="build help")
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
-    edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
-    edit_parser.add_argument("repository_name", type=Path)
     init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
     init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
@@ -185,8 +182,6 @@ def run():
             asyncio.run(process_project(project_spec, concurrency=args.concurrency, use_bindfs=args.use_bindfs))
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
-        elif args.command == "edit":
-            asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
                 clean_project(
