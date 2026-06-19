@@ -216,6 +216,67 @@ class TestLoadSpecFileWithOverride:
         assert "new-repo" in project.repos
         assert project.repos["new-repo"].modules == ["new_mod"]
 
+    def test_load_spec_file_falls_back_to_odoo_subdirectory_for_relative_config(self, monkeypatch, tmp_path: Path) -> None:
+        config_dir = tmp_path / "project"
+        odoo_dir = config_dir / "odoo"
+        odoo_dir.mkdir(parents=True)
+        (odoo_dir / "spec.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["mod1"],
+                        "remotes": {"origin": "https://example.com/repo.git"},
+                        "merges": ["origin main"],
+                    }
+                }
+            )
+        )
+
+        monkeypatch.chdir(config_dir)
+        project = load_spec_file(Path("spec.yaml"), None, None)
+
+        assert project is not None
+        assert project.workdir == odoo_dir.resolve()
+        assert project.repos["test-repo"].modules == ["mod1"]
+
+    def test_load_spec_file_stores_editable_flag(self, tmp_path: Path) -> None:
+        config = tmp_path / "spec.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["mod1"],
+                        "remotes": {"origin": "https://example.com/repo.git"},
+                        "merges": ["origin main"],
+                        "editable": True,
+                    }
+                }
+            )
+        )
+
+        project = load_spec_file(config, None, tmp_path)
+
+        assert project is not None
+        assert project.repos["test-repo"].editable is True
+
+    def test_load_spec_file_rejects_non_bool_editable(self, tmp_path: Path) -> None:
+        config = tmp_path / "spec.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "test-repo": {
+                        "modules": ["mod1"],
+                        "remotes": {"origin": "https://example.com/repo.git"},
+                        "merges": ["origin main"],
+                        "editable": "yes",
+                    }
+                }
+            )
+        )
+
+        with pytest.raises(Exception, match="Key editable not of proper syntax"):
+            load_spec_file(config, None, tmp_path)
+
 
 class TestPathsFieldExtraction:
     def test_load_spec_file_extracts_paths(self, tmp_path: Path) -> None:

@@ -55,6 +55,43 @@ def test_filter_non_link_module(tmp_path: Path) -> None:
     assert set(result) == {"symlinked", "missing", "empty"}
 
 
+def test_add_locking_pre_commit_writes_blocking_hook(tmp_path: Path) -> None:
+    repo_info = _make_repo_info(refspecs=[_make_ref("origin", "main")])
+    rp = _make_repo_processor(tmp_path, repo_info)
+    module_path = tmp_path / "repo"
+    hooks_dir = module_path / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+
+    rp.add_locking_pre_commit("test-repo", module_path)
+
+    hook = hooks_dir / "pre-commit"
+    content = hook.read_text()
+    assert "bl-precommit" in content
+    assert 'bl edit test-repo' in content
+    assert "exit 1" in content
+    assert hook.stat().st_mode & 0o111
+
+
+@pytest.mark.asyncio
+async def test_process_repo_skips_git_work_for_editable_repo(monkeypatch, tmp_path: Path) -> None:
+    repo_info = _make_repo_info(refspecs=[_make_ref("origin", "main")])
+    rp = _make_repo_processor(tmp_path, repo_info)
+    rp.config_file = {"editable": {"test-repo": "True"}}
+    module_path = tmp_path / "repo"
+
+    async def fail_if_called(*args, **kwargs):  # pragma: no cover - failure path only
+        raise AssertionError("editable repo should not perform git or linking work")
+
+    monkeypatch.setattr(rp, "setup_new_repo", fail_if_called)
+    monkeypatch.setattr(rp, "reset_repo_for_work", fail_if_called)
+    monkeypatch.setattr(rp, "link_all_modules", fail_if_called)
+
+    ret, outputs = await rp.process_repo(module_path, ["mod1"], [])
+
+    assert ret == 0
+    assert outputs == []
+
+
 class TestLocalPath:
     def test_local_path_module_in_list(self, tmp_path: Path) -> None:
         local_paths = {"/custom/modules": ["mod1", "mod2"]}
