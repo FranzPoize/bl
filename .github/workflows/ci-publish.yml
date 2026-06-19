@@ -90,7 +90,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
           enable-cache: false
 
       - name: Build distribution
@@ -100,4 +100,3 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: uv publish --token "$UV_PUBLISH_TOKEN"
-
