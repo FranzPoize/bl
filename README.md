@@ -7,6 +7,8 @@ Because `ak` is a bit slow and I was tired of waiting around
 
 ## Install
 
+You need Python >= 3.12.
+
 `pipx install bl-odoo`
 
 ## Usage
@@ -21,16 +23,21 @@ You can also override the default paths and verbosity with:
 - `-j/--concurrency`: number of concurrent tasks (default: `28`)
 - `-b/--use-bindfs`: use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
 - `-w/--workdir`: working directory, defaults to the directory of `--config`
+- `-N/--no-check-version`: do not check PyPI for a newer BL version before running
 - `--log-level`: one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `WARNING`)
+
+Per-project config is stored in `$XDG_CONFIG_HOME/bl/<project>/config.ini`.
+Git commands run without terminal prompts, so credentials for private repos must already be configured.
 
 ### Build
 
 ```bash
-bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [-w WORKDIR] [--log-level LEVEL]
+bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
-It does what ak build does
+It does what ak build does.
+Managed repos get a BL pre-commit hook to avoid accidental commits. Repos marked editable are skipped.
 
 #### Params
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
@@ -39,6 +46,7 @@ It does what ak build does
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `--use-bindfs` use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
 
 #### How it looks
@@ -47,7 +55,7 @@ It does what ak build does
 ### Freeze
 
 ```bash
-bl freeze [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+bl freeze [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -59,12 +67,13 @@ It does what ak freeze does
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
 
 ### Diff
 
 ```bash
-bl diff [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [--log-level LEVEL]
+bl diff [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -76,12 +85,28 @@ Shows diff for all dirty repos in the project.
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
+
+### Edit
+
+```bash
+bl edit REPOSITORY_NAME [options]
+```
+
+#### What does it do
+Turns a managed repo into an editable/full checkout: disables sparse checkout, fetches full content/history, removes the BL locking hook, and saves the editable state.
+
+Use `bl edit <repo>` before committing locally. Editable repos are remembered and skipped by future builds.
+
+#### Params
+* `REPOSITORY_NAME` repo to make editable
+* `options` same shared options as above
 
 ### Clean
 
 ```bash
-bl clean [-c PATH_TO_SPEC] [-o CONFIG_OVERRIDE] [-w WORKDIR] [--log-level LEVEL] [--remove] [--unlink] [--force] [--dry-run]
+bl clean [-c PATH_TO_SPEC] [-o CONFIG_OVERRIDE] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL] [--remove] [--unlink] [--force] [--dry-run]
 ```
 
 #### What does it do
@@ -91,6 +116,7 @@ By default it scans all repos in the spec for dirty git state and resets them wi
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
+* `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
 * `--remove` delete `src` and `external-src` directories
 * `--unlink` also clean the links directory
@@ -132,6 +158,15 @@ It will only download the french and english translation instead of all of them
 - with locales fr, en: 169MB and 27 seconds fresh build
 
 ⚠️ WARNING: you must list all the odoo modules you need if you use the locales property
+
+Repo specs can also set `editable: true` when you want BL to treat it as editable from the start (default is false):
+
+```yaml
+folder_name:
+  editable: true
+  modules:
+    ...
+```
 
 ## I have warnings about patch globs
 
@@ -184,4 +219,3 @@ folder_name:
 |----|----|----|
 |Cold| ~100s | 2 - 10x faster |
 |Hot| 3-20s | 2 - 10x faster |
-
