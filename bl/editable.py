@@ -1,12 +1,27 @@
+from os import remove
 from pathlib import Path
 
 from rich.console import Console
 
 from bl.config import get_config_file, load_config, write_config
 from bl.spec_parser import load_spec_file
-from bl.utils import get_module_path, run_git
+from bl.utils import get_module_path, run, run_git
 
 console = Console()
+
+
+async def remove_locking_pre_commit(module_path):
+    args = ["grep", "bl-precommit"] + [str(m) for m in module_path.glob(".git/hooks/pre-commit*")]
+    ret, out, err = await run(
+        *args,
+    )
+
+    if ret == 0:
+        for line in out.split("\n"):
+            path = line.split(":")[0]
+            if ".git/hooks" in path:
+                remove(path)
+    return ret, out, err
 
 
 async def make_editable(repository_name: str, spec: Path, workdir: Path):
@@ -20,7 +35,7 @@ async def make_editable(repository_name: str, spec: Path, workdir: Path):
     )
 
     if not module_path.exists():
-        console.log(f"[red]Repository {repository_name} does not exists[/]")
+        console.err(f"[red]Repository {repository_name} does not exists[/]")
 
     # git fetch --unshallow origin 2>/dev/null || git fetch origin
     ret, out, err = await run_git("fetch", "--unshallow", cwd=module_path)
@@ -45,6 +60,8 @@ async def make_editable(repository_name: str, spec: Path, workdir: Path):
     # git fetch --refetch origin
     ret, out, err = await run_git("fetch", "--refetch", "origin", cwd=module_path)
     console.print(f"[green]Repo [yellow]{repository_name}[/] fetched fully[/]")
+    ret, out, err = await remove_locking_pre_commit(module_path)
+    console.print(f"[green]Removed commit locking pre-commit in [yellow]{repository_name}[/][/]")
 
     project_name = project_spec.workdir.absolute().parent.stem
     project_config_file_path = get_config_file(project_name)

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import warnings
-from configparser import SectionProxy
+from configparser import ConfigParser, SectionProxy
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,6 +11,7 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
+from bl import config
 from bl.config import get_from_config, load_config
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
@@ -210,7 +211,7 @@ class RepoProcessor:
         self,
         workdir: Path,
         name: str,
-        config_section: SectionProxy,
+        config_file: ConfigParser,
         repo_info: RepoInfo,
         semaphore: asyncio.Semaphore,
         progress: Progress,
@@ -228,6 +229,7 @@ class RepoProcessor:
         self.count_task = count_task
         self.concurrency = concurrency
         self.use_bindfs = use_bindfs
+        self.config_file = config_file
 
     async def setup_remote_branches(self, module_path) -> tuple[int, str]:
         for remote, remote_url in self.repo_info.remotes.items():
@@ -510,9 +512,7 @@ class RepoProcessor:
                 )
         return result
 
-    def filter_local_module(
-        self, module_list: List[str], local_paths: Dict[str, List[str]], config_section: SectionProxy
-    ) -> list[str]:
+    def filter_local_module(self, module_list: List[str], local_paths: Dict[str, List[str]]) -> list[str]:
         if not local_paths:
             return module_list
 
@@ -520,7 +520,7 @@ class RepoProcessor:
         for module_name in module_list:
             local_path = self.local_path(module_name, local_paths)
             if local_path:
-                if local_path.exists() or get_from_config(config_section, "editable", module_name) == "True":
+                if local_path.exists():
                     continue
                 else:
                     console.print(
@@ -601,6 +601,47 @@ class RepoProcessor:
             return -1, err
         return 0, ""
 
+    def remove_locking_pre_commit(self, module_path):
+        ret, out, err = run(
+            [
+                "grep",
+                "bl-precommit",
+                ".git/hooks/precommit*",
+            ],
+            cwd=module_path,
+        )
+
+        if ret == 0:
+            for line in out.split("\n"):
+                path = line.split(":")
+                if ".git/hooks" in path:
+                    console.log("removing pre-commit hooks")
+        pass
+
+    def add_locking_pre_commit(self, repo_name: str, module_path: Path):
+        pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"
+        with open(pre_commit_path, "w") as f:
+            f.writelines(
+                [
+                    "#!/bin/sh\n",
+                    (
+                        ": '\nbl-precommit\n'\n"
+                        + "echo "
+                        + '"\033[38;5;197m####################################################################################'
+                        + "#" * len(repo_name)
+                        + "\n"
+                        + f'\033[0mCommits are disabled, run \\"bl edit {repo_name}\\"'
+                        + " in your project base directory to allow edition\n"
+                        + "\033[38;5;197m####################################################################################"
+                        + "#" * len(repo_name)
+                        + '\033[0m\n"\n'
+                    ),
+                    "exit 1\n",
+                ]
+            )
+            f.close()
+        os.chmod(pre_commit_path, 0o755)
+
     async def process_repo(
         self,
         module_path: Path,
@@ -618,6 +659,13 @@ class RepoProcessor:
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
             return -1, []
+
+        is_editable = get_from_config(self.config_file, "editable", self.name) == "True"
+
+        if is_editable:
+            self.count_progress.advance(self.count_task)
+            self.progress.remove_task(self.task_id)
+            return 0, []
 
         # Collect all fetch outputs to print at the end
         fetch_outputs = []
@@ -645,6 +693,8 @@ class RepoProcessor:
             elif path_exists and not path_empty:
                 self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
                 return -1, []
+
+            self.add_locking_pre_commit(self.name, module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
@@ -768,11 +818,11 @@ class RepoProcessor:
 
         return 0, fetch_outputs
 
-    async def queue_repo_task(self, config_section) -> tuple[int, str, list[str]]:
+    async def queue_repo_task(self) -> tuple[int, str, list[str]]:
         """Processes a single ModuleSpec."""
         symlink_modules = self.filter_non_link_module(self.repo_info)
         module_path = get_module_path(self.workdir, self.name, self.repo_info)
-        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths, config_section)
+        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths)
 
         async with self.semaphore:
             # As an input we have 3 things for each repo
@@ -824,11 +874,10 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
     with Live(progress_table, console=console, refresh_per_second=10):
         tasks = []
         for name, repo_info in project_spec.repos.items():
-            config_section = get_from_config(config_file, name)
             repo_processor = RepoProcessor(
                 project_spec.workdir,
                 name,
-                config_section,
+                config_file,
                 repo_info,
                 semaphore,
                 task_list_progress,
@@ -837,7 +886,7 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
                 concurrency,
                 use_bindfs,
             )
-            tasks.append(repo_processor.queue_repo_task(config_section))
+            tasks.append(repo_processor.queue_repo_task())
 
         # this should error if a task crashes
         results = await asyncio.gather(*tasks)

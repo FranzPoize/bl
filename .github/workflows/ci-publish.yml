@@ -67,7 +67,7 @@ jobs:
           git config --global user.email "ci@example.com"
 
       - name: Run bl build
-        run: bl build -c ci-spec.yaml -z ci-frz.yml
+        run: bl build -N -c ci-spec.yaml -z ci-frz.yml
         working-directory: benchmark/bl_benchmark/
 
       - name: Run ak build and sparse

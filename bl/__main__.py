@@ -108,6 +108,12 @@ def run():
     parent_parser.add_argument(
         "-c", "--config", type=Path, help="Path to the project specification file.", default="spec.yaml"
     )
+    parent_parser.add_argument(
+        "-N",
+        "--no-check-version",
+        action="store_true",
+        help="Disable last version check",
+    )
     parent_parser.add_argument("-z", "--frozen", type=Path, help="Path to the frozen specification file.")
     parent_parser.add_argument(
         "-o",
@@ -168,7 +174,8 @@ def run():
     level_name = args.log_level
     setup_logging(level_name)
 
-    check_last_version()
+    if not args.no_check_version:
+        check_last_version()
 
     if args.command == "init":
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)

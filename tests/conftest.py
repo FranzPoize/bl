@@ -55,7 +55,7 @@ def _make_repo_processor(tmp_path: Path, repo_info: RepoInfo) -> RepoProcessor:
     return RepoProcessor(
         workdir=tmp_path,
         name="test-repo",
-        config_section={},
+        config_file={},
         semaphore=semaphore,
         repo_info=repo_info,
         progress=dummy_progress,

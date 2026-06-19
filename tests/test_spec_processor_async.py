@@ -804,9 +804,11 @@ async def test_merge_spec_into_tree_success(monkeypatch, tmp_path: Path) -> None
 
 @pytest.mark.asyncio
 async def test_fetch_multi_calls_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     ref1 = _make_ref("origin", "main")
     rp = _make_repo_processor(tmp_path, _make_repo_info())
@@ -857,7 +859,7 @@ async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(rp, "process_repo", fake_process_repo)
 
     with pytest.raises(RuntimeError, match="test error"):
-        await rp.queue_repo_task({})
+        await rp.queue_repo_task()
 
 
 @pytest.mark.asyncio
@@ -891,7 +893,7 @@ async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> N
         def __init__(self, *args, **kwargs):
             pass
 
-        async def queue_repo_task(self, config_section):
+        async def queue_repo_task(self):
             return 1, "test", []
 
     from bl import spec_processor as sp
@@ -925,6 +927,7 @@ async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> Non
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -984,6 +987,7 @@ async def test_process_repo_with_cloning_and_temp_branch(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, ["mod1"], ["mod1"])
     assert ret == 0
@@ -1040,6 +1044,7 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -1049,9 +1054,11 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 @pytest.mark.asyncio
 async def test_shallow_pull_output(monkeypatch, tmp_path: Path) -> None:
     """Test that shallow pull also prints output at end."""
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     rp = _make_repo_processor(tmp_path, _make_repo_info())
     rp.task_id = 0
@@ -1095,9 +1102,11 @@ async def test_shallow_pull_output(monkeypatch, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_deferred_output_order(monkeypatch, tmp_path: Path) -> None:
     """Verify that fetch output appears after fetch completes, not during."""
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     ref1 = _make_ref("origin", "main")
     ref2 = _make_ref("origin", "feature")

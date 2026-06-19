@@ -11,7 +11,7 @@ def get_from_config(config: ConfigParser | SectionProxy | dict, *keys):
     current_config_section = config
     for key in keys:
         if key in current_config_section:
-            current_config_section[key]
+            current_config_section = current_config_section[key]
         else:
             return {}
 

@@ -1,0 +1,1 @@
+#!/bin/shecho "Commits are disable run `bl edit <bl.spec_processor.RepoProcessor object at 0x7f538d7942f0>`in your project base directory to allow edition"exit 1
