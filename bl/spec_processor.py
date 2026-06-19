@@ -56,6 +56,8 @@ logger = logging.getLogger(__name__)
 # Link modules:
 # - link all the modules according to how Paradoxxxzero wants it to be done
 
+# TODO (franz): When a branch is not fetchable ask if the user wants to remove it
+# from the spec
 # TODO (franz): Error handling should be watch carefully because if
 # we don't exit on some error code due to the fact that git resolve to
 # the parent repo we could activate sparse checkout on a parent folder
@@ -600,23 +602,6 @@ class RepoProcessor:
             await run_git("am", "--abort", cwd=module_path)
             return -1, err
         return 0, ""
-
-    def remove_locking_pre_commit(self, module_path):
-        ret, out, err = run(
-            [
-                "grep",
-                "bl-precommit",
-                ".git/hooks/precommit*",
-            ],
-            cwd=module_path,
-        )
-
-        if ret == 0:
-            for line in out.split("\n"):
-                path = line.split(":")
-                if ".git/hooks" in path:
-                    console.log("removing pre-commit hooks")
-        pass
 
     def add_locking_pre_commit(self, repo_name: str, module_path: Path):
         pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"

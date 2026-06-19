@@ -10,6 +10,25 @@ from bl.types import OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
 
 @pytest.mark.asyncio
+async def test_remove_locking_pre_commit_removes_bl_precommit_hook(monkeypatch, tmp_path: Path) -> None:
+    module_path = tmp_path / "repo"
+    hook = module_path / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\n# bl-precommit\n")
+
+    async def fake_run(*args):
+        assert args == ("grep", "bl-precommit", str(hook))
+        return 0, f"{hook}:# bl-precommit\n", ""
+
+    monkeypatch.setattr(editable, "run", fake_run)
+
+    result = await editable.remove_locking_pre_commit(module_path)
+
+    assert result == (0, f"{hook}:# bl-precommit\n", "")
+    assert not hook.exists()
+
+
+@pytest.mark.asyncio
 async def test_make_editable_fetches_full_repo_removes_hook_and_writes_state(monkeypatch, tmp_path: Path) -> None:
     workdir = tmp_path / "project" / "odoo"
     module_path = workdir / "external-src" / "test-repo"
