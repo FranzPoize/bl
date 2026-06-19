@@ -3,11 +3,9 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
-from ruamel.yaml import YAML, YAMLError
+import yaml
 
 from bl.types import OriginType, ProjectSpec, RefspecInfo, RepoInfo
-
-yaml = YAML()
 
 
 def make_remote_merge_from_src(src: str) -> tuple[dict, list]:
@@ -115,39 +113,6 @@ def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> None:
             base[key] = override_value
 
 
-def save_spec_file(data: Dict[str, Any], config: Path, workdir: Path):
-    config_abs_path = workdir / config
-    with config_abs_path.open("w") as f:
-        yaml.dump(data, f)
-
-
-def find_spec_file(config: Path, workdir: Path) -> tuple[Dict[str, Any], Path]:
-    if not config.exists():
-        if config.is_relative_to("."):
-            config = config.resolve()
-            # If the file is not in the current directory, check inside the odoo subdirectory
-            odoo_config = config.parent / "odoo" / config.name
-            # TODO(franz): should use rich console for prettiness
-            if not odoo_config.exists():
-                print(f"Error: Neither '{config}' nor '{odoo_config}' exists.")
-                return None
-            config = odoo_config
-        else:
-            print(f"Error: File '{config}' does not exist.")
-            return None, workdir
-
-    workdir = workdir or config.parent
-
-    with config.open("r") as f:
-        try:
-            data: Dict[str, Any] = yaml.load(f)
-        except YAMLError as e:
-            print(f"Error parsing YAML file '{config}': {e}")
-            return None, workdir
-
-    return data, workdir
-
-
 def load_spec_file(
     config: Path, frozen: Path, workdir: Path, overrides: list[Path] | None = None
 ) -> Optional[ProjectSpec]:
@@ -173,10 +138,28 @@ def load_spec_file(
     Returns:
         A ProjectSpec object if successful, None otherwise.
     """
-    data, workdir = find_spec_file(config, workdir)
+    if not config.exists():
+        if config.is_relative_to("."):
+            config = config.resolve()
+            # If the file is not in the current directory, check inside the odoo subdirectory
+            odoo_config = config.parent / "odoo" / config.name
+            # TODO(franz): should use rich console for prettiness
+            if not odoo_config.exists():
+                print(f"Error: Neither '{config}' nor '{odoo_config}' exists.")
+                return None
+            config = odoo_config
+        else:
+            print(f"Error: File '{config}' does not exist.")
+            return None
 
-    if data is None:
-        return None
+    workdir = workdir or config.parent
+
+    with config.open("r") as f:
+        try:
+            data: Dict[str, Any] = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file '{config}': {e}")
+            return None
 
     for override in overrides or []:
         if not override.exists():
@@ -184,10 +167,10 @@ def load_spec_file(
             continue
         try:
             with override.open("r") as override_file:
-                override_data = yaml.load(override_file) or {}
+                override_data = yaml.safe_load(override_file) or {}
                 if isinstance(override_data, dict):
                     merge_configs(data, override_data)
-        except YAMLError as e:
+        except yaml.YAMLError as e:
             print(f"Error parsing override YAML file '{override}': {e}")
 
     frozen_mapping: Dict[str, Dict[str, Dict[str, str]]] = {}
@@ -195,16 +178,15 @@ def load_spec_file(
     if frozen_path.exists():
         try:
             with frozen_path.open("r") as frozen_file:
-                loaded_freezes = yaml.load(frozen_file) or {}
+                loaded_freezes = yaml.safe_load(frozen_file) or {}
                 if isinstance(loaded_freezes, dict):
                     frozen_mapping = loaded_freezes
-        except YAMLError as e:
+        except yaml.YAMLError as e:
             print(f"Error parsing frozen YAML file '{frozen_path}': {e}")
 
     repos: Dict[str, RepoInfo] = {}
     for repo_name, repo_data in data.items():
         modules = get_with_syntax_check(repo_name, repo_data, "modules", list)
-        editable = get_with_syntax_check(repo_name, repo_data, "editable", bool)
         src = get_with_syntax_check(repo_name, repo_data, "src", str)
         remotes = get_with_syntax_check(repo_name, repo_data, "remotes", dict)
         merges = get_with_syntax_check(repo_name, repo_data, "merges", list)
@@ -240,7 +222,6 @@ def load_spec_file(
             target_folder,
             locales,
             paths,
-            editable,
         )
 
     return ProjectSpec(repos, workdir)

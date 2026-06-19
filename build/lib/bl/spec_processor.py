@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import warnings
-from configparser import ConfigParser, SectionProxy
+from os.path import exists
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,8 +11,6 @@ from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl import config
-from bl.config import get_from_config, load_config
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
     bl_env,
@@ -26,8 +24,6 @@ from bl.utils import (
 
 console = Console()
 logger = logging.getLogger(__name__)
-
-# TODO (franz): Please check the todo to see if they are up to date
 
 # TODO (franz): check git version for fetch --porcelain
 
@@ -56,8 +52,6 @@ logger = logging.getLogger(__name__)
 # Link modules:
 # - link all the modules according to how Paradoxxxzero wants it to be done
 
-# TODO (franz): When a branch is not fetchable ask if the user wants to remove it
-# from the spec
 # TODO (franz): Error handling should be watch carefully because if
 # we don't exit on some error code due to the fact that git resolve to
 # the parent repo we could activate sparse checkout on a parent folder
@@ -67,9 +61,6 @@ logger = logging.getLogger(__name__)
 # - For each git command think hard and long about if the error is critical or not
 # - Put a comment about what are the consequences of the error
 # - handle the error
-# TODO (franz): Better log please
-# Store the error somewhere instead of logging it like a maniac
-# group it by repo and spit it by repo into the log file
 
 
 def rich_warning(message, category, filename, lineno, file=None, line=None):
@@ -213,9 +204,8 @@ class RepoProcessor:
         self,
         workdir: Path,
         name: str,
-        config_file: ConfigParser,
-        repo_info: RepoInfo,
         semaphore: asyncio.Semaphore,
+        repo_info: RepoInfo,
         progress: Progress,
         count_progress: Progress,
         count_task: TaskID,
@@ -231,7 +221,6 @@ class RepoProcessor:
         self.count_task = count_task
         self.concurrency = concurrency
         self.use_bindfs = use_bindfs
-        self.config_file = config_file
 
     async def setup_remote_branches(self, module_path) -> tuple[int, str]:
         for remote, remote_url in self.repo_info.remotes.items():
@@ -333,7 +322,7 @@ class RepoProcessor:
 
     async def unshallow_if_necessary(self, module_path: Path):
         s_ret, s_out, s_err = await run_git("rev-parse", "--is-shallow-repository", cwd=module_path)
-        is_shallow = s_out.strip() == "true"
+        is_shallow = s_out == "true"
         need_unshallow = len(self.repo_info.refspec_info) > 1
         if is_shallow and need_unshallow:
             ret, out, err = await run_git("pull", "--rebase", "--unshallow", cwd=module_path)
@@ -603,30 +592,6 @@ class RepoProcessor:
             return -1, err
         return 0, ""
 
-    def add_locking_pre_commit(self, repo_name: str, module_path: Path):
-        pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"
-        with open(pre_commit_path, "w") as f:
-            f.writelines(
-                [
-                    "#!/bin/sh\n",
-                    (
-                        ": '\nbl-precommit\n'\n"
-                        + "echo "
-                        + '"\033[38;5;197m####################################################################################'
-                        + "#" * len(repo_name)
-                        + "\n"
-                        + f'\033[0mCommits are disabled, run \\"bl edit {repo_name}\\"'
-                        + " in your project base directory to allow edition\n"
-                        + "\033[38;5;197m####################################################################################"
-                        + "#" * len(repo_name)
-                        + '\033[0m\n"\n'
-                    ),
-                    "exit 1\n",
-                ]
-            )
-            f.close()
-        os.chmod(pre_commit_path, 0o755)
-
     async def process_repo(
         self,
         module_path: Path,
@@ -644,13 +609,6 @@ class RepoProcessor:
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
             return -1, []
-
-        is_editable = get_from_config(self.config_file, "editable", self.name) == "True"
-
-        if is_editable:
-            self.count_progress.advance(self.count_task)
-            self.progress.remove_task(self.task_id)
-            return 0, []
 
         # Collect all fetch outputs to print at the end
         fetch_outputs = []
@@ -678,8 +636,6 @@ class RepoProcessor:
             elif path_exists and not path_empty:
                 self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
                 return -1, []
-
-            self.add_locking_pre_commit(self.name, module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
@@ -828,8 +784,6 @@ class RepoProcessor:
 
 async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
     """Processes all modules in a ProjectSpec."""
-    project_name = project_spec.workdir.absolute().parent.stem
-    config_file = load_config(project_name)
     (project_spec.workdir / "external-src").mkdir(parents=True, exist_ok=True)
 
     task_list_progress = Progress(
@@ -862,9 +816,8 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             repo_processor = RepoProcessor(
                 project_spec.workdir,
                 name,
-                config_file,
-                repo_info,
                 semaphore,
+                repo_info,
                 task_list_progress,
                 task_count_progress,
                 count_task,

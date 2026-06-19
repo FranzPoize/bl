@@ -68,7 +68,6 @@ class RepoInfo:
         target_folder: Optional[str] = None,
         locales: List[str] = [],
         paths: Dict[str, List[str]] = {},
-        editable: bool = False,
     ):
         self.modules = modules
         self.remotes = remotes
@@ -78,7 +77,6 @@ class RepoInfo:
         self.target_folder = target_folder
         self.locales = locales
         self.paths = paths
-        self.editable = editable
 
     def __repr__(self) -> str:
         return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info}, paths={self.paths})"

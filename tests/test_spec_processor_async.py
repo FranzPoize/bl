@@ -623,6 +623,32 @@ async def test_unshallow_if_necessary_does_unshallow(monkeypatch, tmp_path: Path
 
 
 @pytest.mark.asyncio
+async def test_unshallow_if_necessary_strips_git_output(monkeypatch, tmp_path: Path) -> None:
+    from bl import spec_processor as sp
+
+    refspecs = [_make_ref("origin", "main"), _make_ref("origin", "feature")]
+    repo_info = _make_repo_info(refspecs=refspecs)
+    rp = _make_repo_processor(tmp_path, repo_info)
+    module_path = tmp_path / "repo"
+    module_path.mkdir()
+    calls = []
+
+    async def fake_run_git(*args: str, cwd=None):
+        calls.append(args)
+        if "--is-shallow-repository" in args:
+            return 0, "true\n", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+
+    ret, err = await rp.unshallow_if_necessary(module_path)
+
+    assert ret == 0
+    assert err == ""
+    assert any(c[0] == "pull" and "--unshallow" in c for c in calls)
+
+
+@pytest.mark.asyncio
 async def test_checkout_or_create_base_branch_local_branch(monkeypatch, tmp_path: Path) -> None:
     from bl import spec_processor as sp
 
@@ -804,9 +830,11 @@ async def test_merge_spec_into_tree_success(monkeypatch, tmp_path: Path) -> None
 
 @pytest.mark.asyncio
 async def test_fetch_multi_calls_print_fetch_output(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     ref1 = _make_ref("origin", "main")
     rp = _make_repo_processor(tmp_path, _make_repo_info())
@@ -887,15 +915,12 @@ async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> N
         async def __aexit__(self, *args):
             pass
 
-    async def fake_queue_repo_task():
-        return 1
-
     class FakeRepoProcessor:
-        def __init__(self, rp):
+        def __init__(self, *args, **kwargs):
             pass
 
         async def queue_repo_task(self):
-            return 1
+            return 1, "test", []
 
     from bl import spec_processor as sp
 
@@ -928,6 +953,7 @@ async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> Non
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -987,6 +1013,7 @@ async def test_process_repo_with_cloning_and_temp_branch(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, ["mod1"], ["mod1"])
     assert ret == 0
@@ -1043,6 +1070,7 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
+    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -1052,9 +1080,11 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 @pytest.mark.asyncio
 async def test_shallow_pull_output(monkeypatch, tmp_path: Path) -> None:
     """Test that shallow pull also prints output at end."""
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     rp = _make_repo_processor(tmp_path, _make_repo_info())
     rp.task_id = 0
@@ -1098,9 +1128,11 @@ async def test_shallow_pull_output(monkeypatch, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_deferred_output_order(monkeypatch, tmp_path: Path) -> None:
     """Verify that fetch output appears after fetch completes, not during."""
-    from bl import spec_processor as sp
     from io import StringIO
+
     from rich.console import Console
+
+    from bl import spec_processor as sp
 
     ref1 = _make_ref("origin", "main")
     ref2 = _make_ref("origin", "feature")

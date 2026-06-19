@@ -1,17 +1,18 @@
 [project]
 name = "bl-odoo"
-version = "0.3.22"
+dynamic = ["version"]
 description = "A command-line tool for managing Odoo dependencies."
 authors = [
   { name="Your Name", email="your.email@example.com" },
 ]
 dependencies = [
     "copier",
-    "pyyaml>=6.0.3",
     "rich",
+    "ruamel-yaml>=0.19.1",
     "typer",
+    "xdg-base-dirs>=6.0.2",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
