@@ -631,11 +631,6 @@ class RepoProcessor:
 
         is_editable = get_from_config(self.config_file, "editable", self.name) == "True"
 
-        if is_editable:
-            self.count_progress.advance(self.count_task)
-            self.progress.remove_task(self.task_id)
-            return 0, []
-
         # Collect all fetch outputs to print at the end
         fetch_outputs = []
 
@@ -645,7 +640,7 @@ class RepoProcessor:
         #   - We should check if the remote are properly created
         #     remote can already created I don't thinkk git notifies
         #     us if the remote is not reachable
-        if self.repo_info.refspec_info:
+        if self.repo_info.refspec_info and not is_editable:
             self.progress.update(
                 self.task_id,
                 status=("Setting up repo ..."),
