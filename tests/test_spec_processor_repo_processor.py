@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from bl.utils import add_locking_pre_commit
 from tests.conftest import _make_ref, _make_repo_info, _make_repo_processor
 
 
@@ -62,12 +63,12 @@ def test_add_locking_pre_commit_writes_blocking_hook(tmp_path: Path) -> None:
     hooks_dir = module_path / ".git" / "hooks"
     hooks_dir.mkdir(parents=True)
 
-    rp.add_locking_pre_commit("test-repo", module_path)
+    add_locking_pre_commit("test-repo", module_path)
 
     hook = hooks_dir / "pre-commit"
     content = hook.read_text()
     assert "bl-precommit" in content
-    assert 'bl edit test-repo' in content
+    assert "bl edit test-repo" in content
     assert "exit 1" in content
     assert hook.stat().st_mode & 0o111
 

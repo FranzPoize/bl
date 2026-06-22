@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from bl import config as bl_config
-from bl import editable
+from bl import editable, utils
 from bl.types import OriginType, ProjectSpec, RefspecInfo, RepoInfo
 
 
@@ -20,7 +20,7 @@ async def test_remove_locking_pre_commit_removes_bl_precommit_hook(monkeypatch, 
         assert args == ("grep", "bl-precommit", str(hook))
         return 0, f"{hook}:# bl-precommit\n", ""
 
-    monkeypatch.setattr(editable, "run", fake_run)
+    monkeypatch.setattr(utils, "run", fake_run)
 
     result = await editable.remove_locking_pre_commit(module_path)
 

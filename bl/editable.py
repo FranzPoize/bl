@@ -1,27 +1,12 @@
-from os import remove
 from pathlib import Path
 
 from rich.console import Console
 
 from bl.config import get_config_file, load_config, write_config
 from bl.spec_parser import load_spec_file
-from bl.utils import get_module_path, run, run_git
+from bl.utils import get_module_path, remove_locking_pre_commit, run, run_git
 
 console = Console()
-
-
-async def remove_locking_pre_commit(module_path):
-    args = ["grep", "bl-precommit"] + [str(m) for m in module_path.glob(".git/hooks/pre-commit*")]
-    ret, out, err = await run(
-        *args,
-    )
-
-    if ret == 0:
-        for line in out.split("\n"):
-            path = line.split(":")[0]
-            if ".git/hooks" in path:
-                remove(path)
-    return ret, out, err
 
 
 async def make_editable(repository_name: str, spec: Path, workdir: Path):

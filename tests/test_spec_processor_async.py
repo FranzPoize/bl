@@ -953,7 +953,7 @@ async def test_process_repo_reset_repo_error(monkeypatch, tmp_path: Path) -> Non
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
-    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
+    monkeypatch.setattr(sp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1
@@ -1013,7 +1013,7 @@ async def test_process_repo_with_cloning_and_temp_branch(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
-    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
+    monkeypatch.setattr(sp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, ["mod1"], ["mod1"])
     assert ret == 0
@@ -1070,7 +1070,7 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "path_is_repo", lambda x: True)
-    monkeypatch.setattr(rp, "add_locking_pre_commit", lambda x, y: None)
+    monkeypatch.setattr(sp, "add_locking_pre_commit", lambda x, y: None)
 
     ret, fetch_outputs = await rp.process_repo(module_path, [], [])
     assert ret == -1

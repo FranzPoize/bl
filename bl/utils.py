@@ -16,6 +16,45 @@ bl_env["GIT_TERMINAL_PROMPT"] = "0"
 logger = logging.getLogger(__name__)
 
 
+def add_locking_pre_commit(repo_name: str, module_path: Path):
+    pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"
+    with open(pre_commit_path, "w") as f:
+        f.writelines(
+            [
+                "#!/bin/sh\n",
+                (
+                    ": '\nbl-precommit\n'\n"
+                    + "echo "
+                    + '"\033[38;5;197m####################################################################################'
+                    + "#" * len(repo_name)
+                    + "\n"
+                    + f'\033[0mCommits are disabled, run \\"bl edit {repo_name}\\"'
+                    + " in your project base directory to allow edition\n"
+                    + "\033[38;5;197m####################################################################################"
+                    + "#" * len(repo_name)
+                    + '\033[0m\n"\n'
+                ),
+                "exit 1\n",
+            ]
+        )
+        f.close()
+    os.chmod(pre_commit_path, 0o755)
+
+
+async def remove_locking_pre_commit(module_path):
+    args = ["grep", "bl-precommit"] + [str(m) for m in module_path.glob(".git/hooks/pre-commit*")]
+    ret, out, err = await run(
+        *args,
+    )
+
+    if ret == 0:
+        for line in out.split("\n"):
+            path = line.split(":")[0]
+            if ".git/hooks" in path:
+                os.remove(path)
+    return ret, out, err
+
+
 def format_diff(diff_message):
     split_message = diff_message.split("\n")
 

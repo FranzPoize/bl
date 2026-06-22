@@ -15,10 +15,12 @@ from bl import config
 from bl.config import get_from_config, load_config
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
+    add_locking_pre_commit,
     bl_env,
     format_diff,
     get_local_ref,
     get_module_path,
+    remove_locking_pre_commit,
     run,
     run_git,
     unlink_path,
@@ -603,30 +605,6 @@ class RepoProcessor:
             return -1, err
         return 0, ""
 
-    def add_locking_pre_commit(self, repo_name: str, module_path: Path):
-        pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"
-        with open(pre_commit_path, "w") as f:
-            f.writelines(
-                [
-                    "#!/bin/sh\n",
-                    (
-                        ": '\nbl-precommit\n'\n"
-                        + "echo "
-                        + '"\033[38;5;197m####################################################################################'
-                        + "#" * len(repo_name)
-                        + "\n"
-                        + f'\033[0mCommits are disabled, run \\"bl edit {repo_name}\\"'
-                        + " in your project base directory to allow edition\n"
-                        + "\033[38;5;197m####################################################################################"
-                        + "#" * len(repo_name)
-                        + '\033[0m\n"\n'
-                    ),
-                    "exit 1\n",
-                ]
-            )
-            f.close()
-        os.chmod(pre_commit_path, 0o755)
-
     async def process_repo(
         self,
         module_path: Path,
@@ -641,6 +619,11 @@ class RepoProcessor:
             status="Waiting...",
             total=count_step,
         )
+
+        # We need to remove the pre-commit lock because patch won't work if the pre-commit
+        # lock is in place
+        remove_locking_pre_commit(module_path)
+
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
             return -1, []
@@ -678,8 +661,6 @@ class RepoProcessor:
             elif path_exists and not path_empty:
                 self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
                 return -1, []
-
-            self.add_locking_pre_commit(self.name, module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
@@ -790,6 +771,9 @@ class RepoProcessor:
                 self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
                 return ret, []
             self.progress.advance(self.task_id)
+
+        # Pre commit lock is put in place at the end of all the patching
+        add_locking_pre_commit(self.name, module_path)
 
         self.progress.update(self.task_id, status="Linking directory")
         if self.name != "odoo":
