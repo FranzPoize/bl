@@ -310,6 +310,11 @@ class RepoProcessor:
             return -1, f"Repo is dirty:\n{format_diff(out)}"
         if ret != 0:
             return ret, "[red]Repo does not exist"
+
+        # We need to remove the pre-commit lock because patch won't work if the pre-commit
+        # lock is in place
+        await remove_locking_pre_commit(module_path)
+
         return 0, ""
 
     async def check_main_remote(self, module_path: Path) -> tuple[int, str]:
@@ -619,10 +624,6 @@ class RepoProcessor:
             status="Waiting...",
             total=count_step,
         )
-
-        # We need to remove the pre-commit lock because patch won't work if the pre-commit
-        # lock is in place
-        await remove_locking_pre_commit(module_path)
 
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
