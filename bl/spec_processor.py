@@ -769,7 +769,8 @@ class RepoProcessor:
             self.progress.advance(self.task_id)
 
         # Pre commit lock is put in place at the end of all the patching
-        add_locking_pre_commit(self.name, module_path)
+        if not is_editable:
+            add_locking_pre_commit(self.name, module_path)
 
         self.progress.update(self.task_id, status="Linking directory")
         if self.name != "odoo":

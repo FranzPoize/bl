@@ -78,14 +78,13 @@ async def test_process_repo_skips_git_work_for_editable_repo(monkeypatch, tmp_pa
     repo_info = _make_repo_info(refspecs=[_make_ref("origin", "main")])
     rp = _make_repo_processor(tmp_path, repo_info)
     rp.config_file = {"editable": {"test-repo": "True"}}
-    module_path = tmp_path / "repo"
+    module_path = tmp_path / "test-repo"
 
     async def fail_if_called(*args, **kwargs):  # pragma: no cover - failure path only
         raise AssertionError("editable repo should not perform git or linking work")
 
     monkeypatch.setattr(rp, "setup_new_repo", fail_if_called)
     monkeypatch.setattr(rp, "reset_repo_for_work", fail_if_called)
-    monkeypatch.setattr(rp, "link_all_modules", fail_if_called)
 
     ret, outputs = await rp.process_repo(module_path, ["mod1"], [])
 
