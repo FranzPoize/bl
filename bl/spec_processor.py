@@ -622,7 +622,7 @@ class RepoProcessor:
 
         # We need to remove the pre-commit lock because patch won't work if the pre-commit
         # lock is in place
-        remove_locking_pre_commit(module_path)
+        await remove_locking_pre_commit(module_path)
 
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
