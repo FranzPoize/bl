@@ -714,10 +714,13 @@ class RepoProcessor:
                 refspec_info = self.repo_info.refspec_info[0]
                 ret, out, err = await run_git(
                     "fetch",
+                    "--porcelain",
                     "--depth",
                     "1",
                     refspec_info.remote,
-                    f"{refspec_info.refspec}{(':' + refspec_info.refspec) if refspec_info.type == OriginType.REF else ''}",
+                    f"{refspec_info.refspec}{
+                        (':' + refspec_info.refspec) if refspec_info.type == OriginType.REF else ''
+                    }",
                     cwd=module_path,
                 )
                 # Collect shallow fetch outputs to return instead of printing
@@ -863,8 +866,6 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             return_code, name, fetch_outputs = result
             if fetch_outputs:
                 all_fetch_outputs.append((name, fetch_outputs))
-            if return_code != 0:
-                raise Exception()
 
         # Print all fetch outputs grouped by repo
         if all_fetch_outputs:

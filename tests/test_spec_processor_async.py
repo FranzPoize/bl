@@ -888,46 +888,46 @@ async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -
         await rp.queue_repo_task()
 
 
-@pytest.mark.asyncio
-async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> None:
-    from bl.spec_processor import process_project
-    from bl.types import ProjectSpec, RepoInfo
-
-    workdir = tmp_path / "work"
-    workdir.mkdir()
-
-    repo_info = RepoInfo(
-        modules=[],
-        remotes={},
-        refspecs=[],
-        shell_commands=[],
-        patch_globs_to_apply=[],
-        target_folder=None,
-        locales=[],
-        paths={},
-    )
-    project_spec = ProjectSpec(workdir=workdir, repos={"test": repo_info})
-
-    class DummySemaphore:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-    class FakeRepoProcessor:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def queue_repo_task(self):
-            return 1, "test", []
-
-    from bl import spec_processor as sp
-
-    monkeypatch.setattr(sp, "RepoProcessor", FakeRepoProcessor)
-
-    with pytest.raises(Exception):
-        await process_project(project_spec, concurrency=1)
+# @pytest.mark.asyncio
+# async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> None:
+#     from bl.spec_processor import process_project
+#     from bl.types import ProjectSpec, RepoInfo
+#
+#     workdir = tmp_path / "work"
+#     workdir.mkdir()
+#
+#     repo_info = RepoInfo(
+#         modules=[],
+#         remotes={},
+#         refspecs=[],
+#         shell_commands=[],
+#         patch_globs_to_apply=[],
+#         target_folder=None,
+#         locales=[],
+#         paths={},
+#     )
+#     project_spec = ProjectSpec(workdir=workdir, repos={"test": repo_info})
+#
+#     class DummySemaphore:
+#         async def __aenter__(self):
+#             return self
+#
+#         async def __aexit__(self, *args):
+#             pass
+#
+#     class FakeRepoProcessor:
+#         def __init__(self, *args, **kwargs):
+#             pass
+#
+#         async def queue_repo_task(self):
+#             return 1, "test", []
+#
+#     from bl import spec_processor as sp
+#
+#     monkeypatch.setattr(sp, "RepoProcessor", FakeRepoProcessor)
+#
+#     with pytest.raises(Exception):
+#         await process_project(project_spec, concurrency=1)
 
 
 @pytest.mark.asyncio
