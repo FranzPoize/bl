@@ -135,6 +135,38 @@ Initializes a new project from the [docky-odoo-template-shared](https://github.c
 #### Params
 * `DESTINATION` destination directory (default: current directory)
 
+## Shared Odoo branches
+
+BL now shares ordinary Odoo branch checkouts across projects. Projects with the
+same source repository, branch, modules, and locales point to the same detached
+Git worktree. Building either project fetches the branch and updates the source
+files seen by both projects. There are no background updates.
+
+The shared store defaults to `$XDG_DATA_HOME/bl/odoo` (usually
+`~/.local/share/bl/odoo`). Set `BL_ODOO_STORE` to use a different drive or directory.
+Projects retain their existing `src/` or `target_folder` path as a symlink.
+Different Odoo versions share Git objects; frozen revisions get separate pinned
+worktrees and are not advanced by another project's build.
+
+`bl edit odoo` and editable Odoo settings are rejected. Published source files
+are read-only to discourage accidental changes. `bl clean --remove` unlinks the
+project source without deleting the shared worktree. Existing clean clones are
+retained beside the link as `src.bl-backup-<id>` (or the corresponding custom
+target name); dirty clones are left untouched and the build fails.
+Existing linked worktrees must be relocated with `git worktree move` first,
+so migration does not break their Git registration.
+
+This first implementation shares specs with a single branch or commit and no
+patches, additional merges, shell commands, or local paths. More complex Odoo
+specs continue to use project-local clones. If you add these settings to a
+project already using shared Odoo, first run `bl clean --remove` to remove its
+shared link, then rebuild. Other projects keep their shared source.
+
+Builds serialize shared updates and prepare the requested files before changing
+the live checkout. Updating a live checkout still changes files in place; restart
+running Odoo processes to load the new code consistently. Containers must also
+mount the shared store at the path referenced by the project symlink.
+
 ## Odoo is taking a really long time to clone
 
 Yes !

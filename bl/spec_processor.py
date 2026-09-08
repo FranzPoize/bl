@@ -13,6 +13,7 @@ from rich.table import Column, Table
 
 from bl import config
 from bl.config import get_from_config, load_config
+from bl.odoo_store import OdooStoreError, build_shared_odoo, can_share_odoo, managed_odoo_root
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
 from bl.utils import (
     add_locking_pre_commit,
@@ -630,6 +631,21 @@ class RepoProcessor:
             return -1, []
 
         is_editable = get_from_config(self.config_file, "editable", self.name) == "True"
+
+        if self.name == "odoo":
+            if is_editable or self.repo_info.editable:
+                raise OdooStoreError("Odoo cannot be editable; remove its editable setting before building")
+            if can_share_odoo(self.repo_info):
+                self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
+                await build_shared_odoo(self.repo_info, module_path, self.workdir)
+                self.count_progress.advance(self.count_task)
+                self.progress.remove_task(self.task_id)
+                return 0, []
+            if managed_odoo_root(module_path):
+                raise OdooStoreError(
+                    "Odoo patches, merges, shell commands and local paths still require a project-local checkout. "
+                    "Remove the shared project link with bl clean --remove before rebuilding this specification."
+                )
 
         # Collect all fetch outputs to print at the end
         fetch_outputs = []
