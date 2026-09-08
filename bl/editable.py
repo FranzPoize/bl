@@ -10,6 +10,8 @@ console = Console()
 
 
 async def make_editable(repository_name: str, spec: Path, workdir: Path):
+    if str(repository_name) == "odoo":
+        raise ValueError("Odoo cannot be edited; it is managed by BL")
     project_spec = load_spec_file(spec, None, workdir, [])
     if str(repository_name) not in project_spec.repos:
         console.log(f"[red][yellow]{repository_name}[/] not in spec")
