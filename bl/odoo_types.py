@@ -1,4 +1,4 @@
-"""Identity and ownership of the basic shared Odoo checkouts."""
+"""Identity and ownership of shared Odoo checkouts."""
 
 import hashlib
 import json
@@ -27,16 +27,32 @@ class OdooCheckoutSelection:
 
 
 @dataclass(frozen=True)
+class OdooSourceRef:
+    url: str
+    ref: str
+    kind: str
+
+
+@dataclass(frozen=True)
 class OdooWorktreeRecipe:
     repository_id: str
     ref: str
     pinned: bool
     selection: OdooCheckoutSelection
     format_version: int = 1
+    merges: tuple[OdooSourceRef, ...] = ()
+    patch_digests: tuple[str, ...] = ()
+    ref_kind: str = ""
 
     @property
     def worktree_id(self) -> str:
-        return content_id(asdict(self))
+        data = asdict(self)
+        # Keep existing basic-branch identities so updating one consumer still
+        # advances consumers created before patch/merge support was installed.
+        for key in ("merges", "patch_digests", "ref_kind"):
+            if not data[key]:
+                del data[key]
+        return content_id(data)
 
 
 @dataclass(frozen=True)

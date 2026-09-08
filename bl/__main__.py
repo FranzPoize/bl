@@ -10,13 +10,14 @@ import sys
 from pathlib import Path
 
 from copier import run_copy
-from plumbum.lib import captured_stdout
 from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
+from bl.config import get_odoo_store_root
 from bl.editable import make_editable
 from bl.freezer import freeze_project
+from bl.odoo_store import prune_unused_worktrees
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
 
@@ -168,6 +169,9 @@ def run():
         action="store_true",
         help="Just output dirty repo.",
     )
+    store_parser = sub.add_parser("clean-store", parents=[parent_parser], help="Remove unused shared Odoo worktrees")
+    store_parser.add_argument("--dry-run", action="store_true", help="List unused worktrees without removing them")
+    store_parser.add_argument("--force", action="store_true", help="Remove unused worktrees without confirmation")
 
     args = parser.parse_args()
 
@@ -180,6 +184,23 @@ def run():
     if args.command == "init":
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
         sys.exit(0)
+
+    if args.command == "clean-store":
+        try:
+            root = get_odoo_store_root()
+            candidates = asyncio.run(prune_unused_worktrees(root, dry_run=True))
+            for path in candidates:
+                out_console.print(f"Unused Odoo worktree: {path}")
+            if not candidates:
+                out_console.print("No unused Odoo worktrees.")
+            elif not args.dry_run:
+                if args.force or input("Remove these unused Odoo worktrees? [y/N]: ").strip().lower() == "y":
+                    removed = asyncio.run(prune_unused_worktrees(root, dry_run=False))
+                    out_console.print(f"Removed {len(removed)} unused Odoo worktree(s).")
+        except Exception as exc:
+            err_console.print(str(exc))
+            sys.exit(1)
+        return
 
     project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
     if project_spec is None:
@@ -206,7 +227,8 @@ def run():
             )
             if ret != 0:
                 sys.exit(1)
-    except Exception:
+    except Exception as exc:
+        err_console.print(str(exc))
         sys.exit(1)
 
 

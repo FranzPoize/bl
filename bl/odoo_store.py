@@ -1,9 +1,14 @@
-"""Shared, managed Odoo branch worktrees. Patches and merges remain project-local."""
+"""Shared, managed Odoo worktrees, prepared from ordered refs and patch contents."""
 
 import asyncio
 import fcntl
+import glob
+import hashlib
 import json
 import logging
+import os
+import shlex
+import tempfile
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -11,7 +16,7 @@ from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from bl.config import get_odoo_store_root
-from bl.odoo_types import OdooCheckoutSelection, OdooProjectBinding, OdooWorktreeRecipe, content_id
+from bl.odoo_types import OdooCheckoutSelection, OdooProjectBinding, OdooSourceRef, OdooWorktreeRecipe, content_id
 from bl.types import OriginType, RepoInfo
 from bl.utils import run_git
 
@@ -23,11 +28,7 @@ class OdooStoreError(RuntimeError):
 
 
 def can_share_odoo(spec: RepoInfo) -> bool:
-    return (
-        len(spec.refspec_info) == 1
-        and spec.refspec_info[0].type in (OriginType.BRANCH, OriginType.REF)
-        and not (spec.patch_globs_to_apply or spec.shell_commands or spec.paths)
-    )
+    return bool(spec.refspec_info) and not spec.paths
 
 
 def managed_odoo_root(path: Path) -> Path | None:
@@ -45,13 +46,17 @@ def managed_odoo_root(path: Path) -> Path | None:
     return None
 
 
-async def read_shared_odoo_head(path: Path) -> str | None:
+async def read_shared_odoo_refs(path: Path) -> list[str] | None:
     root = managed_odoo_root(path)
     if root is None:
         return None
     common = Path((await _git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=path)).strip())
     async with store_lock(root, common.stem):
-        return (await _git("rev-parse", "HEAD", cwd=path)).strip()
+        record = json.loads((root / "metadata" / f"{path.resolve().name}.json").read_text())
+        head = (await _git("rev-parse", "HEAD", cwd=path)).strip()
+        if head != record["head_sha"]:
+            raise OdooStoreError("Odoo checkout and build metadata differ; rebuild before freezing")
+        return record.get("resolved_refs", [head])
 
 
 @asynccontextmanager
@@ -113,13 +118,101 @@ async def _assert_clean(path: Path) -> None:
         raise OdooStoreError(f"Odoo source has local changes; leaving it untouched: {path}")
 
 
-async def _prepare(repository: Path, path: Path, sha: str, selection: OdooCheckoutSelection) -> None:
-    await _git("worktree", "add", "--detach", "--no-checkout", str(path), sha, cwd=repository, bare=True)
+async def _prepare(
+    repository: Path, path: Path, resolved: list[str], patches: tuple[bytes, ...], selection: OdooCheckoutSelection
+) -> str:
+    await _git("worktree", "add", "--detach", "--no-checkout", str(path), resolved[0], cwd=repository, bare=True)
     await _git("config", "--worktree", "core.bare", "false", cwd=path)
+    if len(resolved) > 1 or patches:
+        # Transforms can touch files outside the final sparse selection. Build
+        # the complete tree privately, then apply the consumer's selection.
+        await _git("reset", "--hard", resolved[0], cwd=path)
+        commit_options = (
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "user.name=BL",
+            "-c",
+            "user.email=bl@localhost",
+            "-c",
+            "commit.gpgSign=false",
+            "-c",
+            "merge.gpgSign=false",
+        )
+        for sha in resolved[1:]:
+            await _git(*commit_options, "merge", "--no-edit", "--no-verify", "--ff", sha, cwd=path)
+        # Use the bytes whose digests were used in the recipe, never re-read
+        # mutable project patch files during a build or on another consumer.
+        admin = Path((await _git("rev-parse", "--absolute-git-dir", cwd=path)).strip())
+        with tempfile.TemporaryDirectory(prefix="patches-", dir=admin) as directory:
+            for index, patch in enumerate(patches):
+                patch_file = Path(directory) / f"{index:06d}.patch"
+                patch_file.write_bytes(patch)
+                ret, _, _ = await run_git("apply", "--reverse", "--check", str(patch_file), cwd=path)
+                if ret:
+                    await _git(*commit_options, "am", "--committer-date-is-author-date", str(patch_file), cwd=path)
     mode, patterns = selection.sparse_parameters()
     await _git("sparse-checkout", "set", mode, "--", *patterns, cwd=path)
-    await _git("reset", "--hard", sha, cwd=path)
+    await _git("reset", "--hard", "HEAD", cwd=path)
     await _protect_files(path)
+    return (await _git("rev-parse", "HEAD", cwd=path)).strip()
+
+
+def _read_patches(spec: RepoInfo, target: Path) -> tuple[bytes, ...]:
+    patterns = []
+    for command in spec.shell_commands:
+        parts = shlex.split(command)
+        if len(parts) < 3 or parts[:2] != ["git", "am"] or any(p.startswith("-") for p in parts[2:]):
+            raise OdooStoreError("Odoo shell commands cannot be shared; use patch_globs for patches")
+        # Only the legacy declarative git-am form is supported; no shell runs.
+        patterns.extend(parts[2:])
+    patterns.extend(spec.patch_globs_to_apply)
+    patches = []
+    for pattern in patterns:
+        # Normalize '..' lexically before globbing: src may already be a symlink
+        # into the global store, but patch paths belong to the project.
+        absolute_pattern = os.path.normpath(str(target / pattern))
+        matches = sorted(glob.glob(absolute_pattern, recursive=True))
+        if not matches:
+            raise OdooStoreError(f"Odoo patch pattern has no matches: {pattern}")
+        for match in matches:
+            path = Path(match)
+            if not path.is_file():
+                raise OdooStoreError(f"Odoo patch is not a file: {path}")
+            patches.append(path.read_bytes())
+    return tuple(patches)
+
+
+async def _fetch_ref(repository: Path, source: OdooSourceRef, *, full_history: bool, base: bool) -> str:
+    remote = "origin" if base else f"source-{content_id(source.url)}"
+    for key, value in (("url", source.url), ("promisor", "true"), ("partialclonefilter", "blob:none")):
+        await _git("config", f"remote.{remote}.{key}", value, cwd=repository, bare=True)
+    options = [] if full_history else ["--depth=1"]
+    if (
+        full_history
+        and (await _git("rev-parse", "--is-shallow-repository", cwd=repository, bare=True)).strip() == "true"
+    ):
+        options = ["--unshallow"]
+    if source.kind == "ref":
+        if len(source.ref) not in (40, 64) or any(c not in "0123456789abcdef" for c in source.ref):
+            raise OdooStoreError("Odoo frozen revision must be a full commit SHA")
+        destination = f"refs/bl/pins/{source.ref}"
+        ret, _, _ = await run_git("cat-file", "-e", f"{source.ref}^{{commit}}", cwd=repository, git_dir=repository)
+        if ret or options == ["--unshallow"]:
+            await _git("fetch", *options, "--filter=blob:none", remote, source.ref, cwd=repository, bare=True)
+        await _git("update-ref", destination, source.ref, cwd=repository, bare=True)
+    else:
+        requested = source.ref if source.kind == "pr" else f"refs/heads/{source.ref}"
+        await _git("check-ref-format", requested, cwd=repository, bare=True)
+        destination = (
+            f"refs/remotes/origin/{source.ref}"
+            if base and source.kind == "branch"
+            else f"refs/bl/sources/{content_id((source.url, source.ref, source.kind))}"
+        )
+        await _git(
+            "fetch", *options, "--filter=blob:none", remote, f"+{requested}:{destination}", cwd=repository, bare=True
+        )
+    return (await _git("rev-parse", f"{destination}^{{commit}}", cwd=repository, bare=True)).strip()
 
 
 async def _remove_worktree(repository: Path, path: Path) -> None:
@@ -166,13 +259,21 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
     target = target.parent.resolve() / target.name
     if target.name == ".." or workdir.resolve().is_relative_to(target):
         raise OdooStoreError("Odoo target_folder must not contain the project directory itself")
+    inputs = tuple(
+        OdooSourceRef(_source_url(spec.remotes[ref.remote], workdir), ref.refspec.strip(), ref.type.value)
+        for ref in spec.refspec_info
+    )
     ref = spec.refspec_info[0]
-    url = _source_url(spec.remotes[ref.remote], workdir)
+    url = inputs[0].url
+    patches = _read_patches(spec, target)
     recipe = OdooWorktreeRecipe(
         repository_id=content_id(url),
         ref=ref.refspec.strip(),
         pinned=ref.type == OriginType.REF,
         selection=OdooCheckoutSelection(tuple(sorted(set(spec.modules))), tuple(sorted(set(spec.locales)))),
+        merges=inputs[1:],
+        patch_digests=tuple(hashlib.sha256(patch).hexdigest() for patch in patches),
+        ref_kind="pr" if ref.type == OriginType.PR else "",
     )
     repository = root / "repositories" / f"{recipe.repository_id}.git"
     source = root / "worktrees" / recipe.repository_id / recipe.worktree_id
@@ -203,32 +304,16 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
             for abandoned in source.parent.glob(".preparing-*"):
                 await _remove_worktree(repository, abandoned)
 
-            if recipe.pinned:
-                if len(recipe.ref) not in (40, 64) or any(c not in "0123456789abcdef" for c in recipe.ref):
-                    raise OdooStoreError("Odoo frozen revision must be a full commit SHA")
-                destination = f"refs/bl/pins/{recipe.ref}"
-                ret, _, _ = await run_git(
-                    "cat-file", "-e", f"{recipe.ref}^{{commit}}", cwd=repository, git_dir=repository
+            # Once merge histories are needed, never shallow this repository
+            # again: another project's simple build must not truncate them.
+            if recipe.merges:
+                await _git("config", "bl.odooFullHistory", "true", cwd=repository, bare=True)
+            _, full, _ = await run_git("config", "--get", "bl.odooFullHistory", cwd=repository, git_dir=repository)
+            resolved = []
+            for index, item in enumerate(inputs):
+                resolved.append(
+                    await _fetch_ref(repository, item, full_history=full.strip() == "true", base=index == 0)
                 )
-                if ret:
-                    await _git(
-                        "fetch", "--depth=1", "--filter=blob:none", "origin", recipe.ref, cwd=repository, bare=True
-                    )
-                await _git("update-ref", destination, recipe.ref, cwd=repository, bare=True)
-            else:
-                branch = f"refs/heads/{recipe.ref}"
-                await _git("check-ref-format", branch, cwd=repository, bare=True)
-                destination = f"refs/remotes/origin/{recipe.ref}"
-                await _git(
-                    "fetch",
-                    "--depth=1",
-                    "--filter=blob:none",
-                    "origin",
-                    f"+{branch}:{destination}",
-                    cwd=repository,
-                    bare=True,
-                )
-            sha = (await _git("rev-parse", f"{destination}^{{commit}}", cwd=repository, bare=True)).strip()
             source.parent.mkdir(parents=True, exist_ok=True)
             if source.exists():
                 await _assert_clean(source)
@@ -236,11 +321,14 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
             else:
                 old_sha = None
 
-            if old_sha != sha:
+            previous = json.loads(record_path.read_text()) if record_path.exists() else {}
+            previous_refs = previous.get("resolved_refs", [previous.get("head_sha")])
+            sha = old_sha
+            if old_sha is None or previous_refs != resolved or previous.get("head_sha") != old_sha:
                 staging = source.with_name(f".preparing-{uuid4().hex}")
                 try:
                     # Materialize all requested blobs before touching live files.
-                    await _prepare(repository, staging, sha, recipe.selection)
+                    sha = await _prepare(repository, staging, resolved, patches, recipe.selection)
                     if old_sha is None:
                         await _git("worktree", "move", str(staging), str(source), cwd=repository, bare=True)
                     else:
@@ -255,15 +343,19 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
                     if staging.exists():
                         await _remove_worktree(repository, staging)
             await _protect_files(source)
-            _write_json(record_path, {"recipe": asdict(recipe), "head_sha": sha})
+            _write_json(record_path, {"recipe": asdict(recipe), "head_sha": sha, "resolved_refs": resolved})
             await _attach(target, source, root, recipe)
 
 
-async def prune_unused_worktrees(root: Path, *, dry_run: bool = True) -> None:
+async def prune_unused_worktrees(root: Path, *, dry_run: bool = True) -> list[Path]:
     """Explicit cleanup of unreferenced published worktrees; no automatic GC."""
     root = root.resolve()
+    candidates = []
     for record_path in (root / "metadata").glob("*.json"):
-        record = json.loads(record_path.read_text())
+        try:
+            record = json.loads(record_path.read_text())
+        except FileNotFoundError:
+            continue  # Another cleanup already removed this record.
         repository_id = record["recipe"]["repository_id"]
         async with store_lock(root, repository_id):
             source = root / "worktrees" / repository_id / record_path.stem
@@ -276,12 +368,17 @@ async def prune_unused_worktrees(root: Path, *, dry_run: bool = True) -> None:
                     used = True
                 elif binding["worktree_id"] == record_path.stem:
                     stale.append(file)
-            if used or dry_run:
+            if used:
                 continue
             repository = root / "repositories" / f"{repository_id}.git"
             if source.exists():
                 await _assert_clean(source)
+            candidates.append(source)
+            if dry_run:
+                continue
+            if source.exists():
                 await _remove_worktree(repository, source)
             for file in stale:
                 file.unlink(missing_ok=True)
             record_path.unlink(missing_ok=True)
+    return candidates

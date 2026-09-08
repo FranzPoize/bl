@@ -1,7 +1,5 @@
 """Acceptance tests for patches on shared, moving Odoo branch worktrees.
 
-Sharing is not implemented yet: failures at the sharing/update assertions are
-intentional test-first specifications, not skipped or expected-failure tests.
 All Git operations use temporary local repositories and isolated configuration.
 """
 

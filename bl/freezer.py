@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
 
-from bl.odoo_store import read_shared_odoo_head
+from bl.odoo_store import OdooStoreError, read_shared_odoo_refs
 from bl.types import ProjectSpec, RepoInfo
 from bl.utils import get_local_ref, get_module_path, run_git
 
@@ -25,12 +25,14 @@ async def freeze_spec(
     async with sem:
         module_path = get_module_path(workdir, module_name, module_spec)
 
-        shared_head = await read_shared_odoo_head(module_path) if module_name == "odoo" else None
+        shared_refs = await read_shared_odoo_refs(module_path) if module_name == "odoo" else None
+        if shared_refs is not None and len(shared_refs) != len(module_spec.refspec_info):
+            raise OdooStoreError("Odoo specification changed; rebuild before freezing")
 
-        for refspec_info in module_spec.refspec_info:
+        for index, refspec_info in enumerate(module_spec.refspec_info):
             local_ref = get_local_ref(refspec_info)
-            if shared_head is not None:
-                out = shared_head
+            if shared_refs is not None:
+                out = shared_refs[index]
             else:
                 ret, out, err = await run_git("rev-list", "--max-count", "1", local_ref, cwd=module_path)
 

@@ -111,12 +111,7 @@ async def test_project_clean_never_resets_shared_source(
 
 
 async def _prune(root: Path, *, dry_run: bool) -> None:
-    """Proposed minimal store API; no production stub is added for these tests.
-
-    The implementation must examine live project bindings/links and remove
-    unused worktrees through Git. Delayed lookup keeps the suite collectible
-    until bl.odoo_store exists; absence is an explicit failing acceptance test.
-    """
+    """Exercise the store cleanup API while keeping lifecycle assertions local."""
     assert importlib.util.find_spec("bl.odoo_store") is not None, "Shared Odoo store cleanup is not implemented"
     store = importlib.import_module("bl.odoo_store")
     await store.prune_unused_worktrees(root, dry_run=dry_run)

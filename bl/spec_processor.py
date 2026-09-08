@@ -643,7 +643,7 @@ class RepoProcessor:
                 return 0, []
             if managed_odoo_root(module_path):
                 raise OdooStoreError(
-                    "Odoo patches, merges, shell commands and local paths still require a project-local checkout. "
+                    "Odoo local paths require a project-local checkout. "
                     "Remove the shared project link with bl clean --remove before rebuilding this specification."
                 )
 

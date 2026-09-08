@@ -1,9 +1,8 @@
 # Shared Odoo worktree acceptance tests
 
-Basic unpatched branch sharing is implemented. Acceptance tests for shared
-patches and merges remain deliberately failing; they are not marked `xfail`
-or skipped. `test_odoo_basic_sharing.py` covers the boundary between the basic
-implementation and the existing project-local patch/merge processing.
+Branch, patch, and merge sharing are implemented. All acceptance tests are
+expected to pass, with no skipped or expected-failure cases.
+`test_odoo_basic_sharing.py` covers migration and changes to project specs.
 
 The source contract is a moving shared branch: rebuilding either consumer
 updates both consumers when their branch, merge sequence, patches, and checkout
@@ -23,6 +22,9 @@ The suites cover:
   same-named projects, dry runs, and explicit store cleanup.
 - `test_odoo_worktree_concurrency.py`: separate build processes synchronized
   with pipes, plus termination after checkout creation and recovery on retry.
+- `test_odoo_shared_transforms.py`: cross-remote merges, PR refs, freezing
+  individual inputs, legacy patch syntax, sparse patches, and store compatibility.
+- `test_main.py`: CLI dispatch, including standalone store cleanup.
 
 `odoo_worktree_helpers.py` creates tiny local Git repositories and isolates
 Git identity/configuration and XDG directories. No Odoo download is needed.
@@ -30,12 +32,12 @@ Git identity/configuration and XDG directories. No Odoo download is needed.
 Run with the project's test dependencies installed:
 
 ```sh
-python -m pytest tests/test_odoo_worktree_*.py
+python -m pytest tests
 ```
 
 Most tests use existing build/freeze/clean/edit entry points. The two store
 cleanup tests use `bl.odoo_store.prune_unused_worktrees(root, dry_run=...)`.
-This is an internal API; there is no store cleanup CLI command yet.
+The `bl clean-store` CLI exposes this operation with dry-run and confirmation.
 
 Sparse selection tests preserve existing module/language behavior. They do
 not assume the proposed complete-checkout mode has been accepted. The tests

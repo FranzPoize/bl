@@ -1,4 +1,4 @@
-"""Integration boundaries specific to the first, unpatched sharing implementation."""
+"""Integration boundaries for shared Odoo specifications and local project data."""
 
 import pytest
 
@@ -45,7 +45,7 @@ async def test_target_cannot_replace_project_itself(odoo_store: OdooEnvironment)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transform", ["patch", "shell", "merge"])
-async def test_changed_spec_cannot_run_transformations_in_shared_source(
+async def test_changed_spec_does_not_transform_other_consumers_source(
     odoo_store: OdooEnvironment, transform: str
 ) -> None:
     patches = odoo_store.patch_series("private fix")
@@ -61,16 +61,22 @@ async def test_changed_spec_cannot_run_transformations_in_shared_source(
     else:
         a.configure(merges=["origin 18.0"])
 
-    with pytest.raises(OdooStoreError, match="project-local"):
+    if transform == "shell":
+        with pytest.raises(OdooStoreError, match="shell commands"):
+            await a.build()
+        assert a.source.resolve() == b.source.resolve()
+    else:
         await a.build()
+        assert a.source.resolve() != b.source.resolve()
+        expected = "private fix\n" if transform == "patch" else "original\n"
+        assert (a.source / "odoo/message.txt").read_text() == expected
 
-    assert a.source.resolve() == b.source.resolve()
     assert odoo_store.git(b.source, "rev-parse", "HEAD") == before
     assert (b.source / "odoo/message.txt").read_text() == "original\n"
 
 
 @pytest.mark.asyncio
-async def test_clean_then_build_patched_spec_uses_private_checkout(odoo_store: OdooEnvironment) -> None:
+async def test_clean_then_build_patched_spec_uses_distinct_shared_checkout(odoo_store: OdooEnvironment) -> None:
     patches = odoo_store.patch_series("private fix")
     a, b = odoo_store.project("a", patches), odoo_store.project("b")
     a.configure(patch_globs=[])
@@ -81,7 +87,9 @@ async def test_clean_then_build_patched_spec_uses_private_checkout(odoo_store: O
     await clean_project(a.specification(), remove=True, force=True)
     await a.build()
 
-    assert not a.source.is_symlink()
+    assert a.source.is_symlink()
+    assert a.source.resolve() != b.source.resolve()
+    assert odoo_store.common_dir(a) == odoo_store.common_dir(b)
     assert (a.source / "odoo/message.txt").read_text() == "private fix\n"
     assert (b.source / "odoo/message.txt").read_text() == "original\n"
 
