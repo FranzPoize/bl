@@ -3,6 +3,7 @@ import logging
 import os
 import warnings
 from configparser import ConfigParser, SectionProxy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
@@ -207,6 +208,15 @@ async def print_fetch_output(name, fetch_data, module_path) -> str:
     return fetch_output
 
 
+@dataclass
+class RepoTaskResult:
+    return_code: int
+    name: str
+    fetch_outputs: list[str]
+    error: str | None = None
+    exception: Exception | None = None
+
+
 class RepoProcessor:
     """
     Processes a ProjectSpec by concurrently cloning and merging modules.
@@ -235,6 +245,8 @@ class RepoProcessor:
         self.concurrency = concurrency
         self.use_bindfs = use_bindfs
         self.config_file = config_file
+        self.fetch_outputs: list[str] = []
+        self.task_id: TaskID | None = None
 
     async def setup_remote_branches(self, module_path) -> tuple[int, str]:
         for remote, remote_url in self.repo_info.remotes.items():
@@ -619,6 +631,8 @@ class RepoProcessor:
     ) -> tuple[int, list[str]]:
         # TODO(franz): return a proper error code with data so that we can do something we it
         # like reset the repo or remove an unexisting branch from the spec
+        self.fetch_outputs = []
+        fetch_outputs = self.fetch_outputs
         count_step = self.count_step()
         self.task_id = self.progress.add_task(
             f"[cyan]{self.name}",
@@ -628,7 +642,7 @@ class RepoProcessor:
 
         if not self.repo_info.refspec_info and not self.repo_info.paths:
             self.progress.update(self.task_id, status="[yellow]No origins defined", completed=1)
-            return -1, []
+            return -1, fetch_outputs
 
         is_editable = get_from_config(self.config_file, "editable", self.name) == "True"
 
@@ -638,7 +652,6 @@ class RepoProcessor:
             if can_share_odoo(self.repo_info):
                 self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
                 await build_shared_odoo(self.repo_info, module_path, self.workdir)
-                self.count_progress.advance(self.count_task)
                 self.progress.remove_task(self.task_id)
                 return 0, []
             if managed_odoo_root(module_path):
@@ -646,9 +659,6 @@ class RepoProcessor:
                     "Odoo local paths require a project-local checkout. "
                     "Remove the shared project link with bl clean --remove before rebuilding this specification."
                 )
-
-        # Collect all fetch outputs to print at the end
-        fetch_outputs = []
 
         # First thing we need to do is setup the repos
         # - If the repo does not exist we need to clone it
@@ -672,20 +682,20 @@ class RepoProcessor:
                 ret, err = await self.reset_repo_for_work(module_path)
             elif path_exists and not path_empty:
                 self.progress.update(self.task_id, status=f"[red]{module_path} is not a repo and is not empty")
-                return -1, []
+                return -1, fetch_outputs
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Setup or clone: {err}[/red]")
                 ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
                 if ret != 0:
                     self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
-                return -1, []
+                return -1, fetch_outputs
 
             ret, err = await self.check_main_remote(module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Check main remote: {err}[/red]")
-                return -1, []
+                return -1, fetch_outputs
 
             ret, err = await self.setup_remote_branches(module_path)
 
@@ -694,7 +704,7 @@ class RepoProcessor:
             ret, err = await self.unshallow_if_necessary(module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Unshallow repo: {err}[/red]")
-                return -1, []
+                return -1, fetch_outputs
 
             # HACK(franz): This didn't work because if we change base branch it will checkout a branch
             # we don't want at the end
@@ -751,13 +761,13 @@ class RepoProcessor:
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
-                return -1, []
+                return -1, fetch_outputs
 
             self.progress.advance(self.task_id)
             ret, err = await self.setup_merged_branch(module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Merged branch error: {err}[/red]")
-                return ret, []
+                return ret, fetch_outputs
 
             # Merge everything into the main branch
             for refspec_info in self.repo_info.refspec_info[1:]:
@@ -766,7 +776,7 @@ class RepoProcessor:
                 )
                 self.progress.advance(self.task_id)
                 if ret != 0:
-                    return ret, []
+                    return ret, fetch_outputs
 
             # We sparse checkout after the merge because it's faster to do it
             # in this order
@@ -774,14 +784,14 @@ class RepoProcessor:
 
         ret = await self.run_shell_commands(self.repo_info, module_path)
         if ret != 0:
-            return ret, []
+            return ret, fetch_outputs
         self.progress.advance(self.task_id)
 
         for glob in self.repo_info.patch_globs_to_apply:
             ret, err = await self.check_and_apply_patch(glob, module_path)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Applying patches failed: {err}")
-                return ret, []
+                return ret, fetch_outputs
             self.progress.advance(self.task_id)
 
         # Pre commit lock is put in place at the end of all the patching
@@ -793,34 +803,29 @@ class RepoProcessor:
             ret, err = await self.link_all_modules(symlink_modules, module_path, self.repo_info.paths)
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
-                return ret, []
+                return ret, fetch_outputs
 
-        self.count_progress.advance(self.count_task)
         self.progress.remove_task(self.task_id)
 
         return 0, fetch_outputs
 
-    async def queue_repo_task(self) -> tuple[int, str, list[str]]:
-        """Processes a single ModuleSpec."""
-        symlink_modules = self.filter_non_link_module(self.repo_info)
-        module_path = get_module_path(self.workdir, self.name, self.repo_info)
-        git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths)
-
+    async def queue_repo_task(self) -> RepoTaskResult:
+        """Process one repository without interrupting independent repositories."""
         async with self.semaphore:
-            # As an input we have 3 things for each repo
-            # a list of branches
-            # a list of remotes
-            # a list of modules
             try:
+                symlink_modules = self.filter_non_link_module(self.repo_info)
+                module_path = get_module_path(self.workdir, self.name, self.repo_info)
+                git_modules = self.filter_local_module(symlink_modules, self.repo_info.paths)
                 ret, fetch_outputs = await self.process_repo(module_path, symlink_modules, git_modules)
-                return ret, self.name, fetch_outputs
-
+                error = f"Processing failed (exit code {ret})" if ret else None
+                return RepoTaskResult(ret, self.name, fetch_outputs, error)
             except Exception as e:
-                self.progress.update(self.task_id, status=f"[red]Error: {str(e)}")
-                raise e
-                return -1, self.name, []
-
-        return 0, self.name, []
+                if self.task_id is not None:
+                    self.progress.update(self.task_id, status=f"[red]Error: {e}")
+                return RepoTaskResult(-1, self.name, self.fetch_outputs, str(e), e)
+            finally:
+                # Count finished repositories, including failures.
+                self.count_progress.advance(self.count_task)
 
 
 async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
@@ -870,20 +875,22 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             )
             tasks.append(repo_processor.queue_repo_task())
 
-        # this should error if a task crashes
         results = await asyncio.gather(*tasks)
 
-        # Collect all fetch outputs and print at the end, grouped by repo
-        all_fetch_outputs = []
-        for result in results:
-            return_code, name, fetch_outputs = result
-            if fetch_outputs:
-                all_fetch_outputs.append((name, fetch_outputs))
-            if return_code != 0:
-                raise Exception()
+    # Print after Live closes so failures cannot hide the fetch summary.
+    failures = []
+    for result in results:
+        if result.fetch_outputs:
+            console.print(f"[orange1]{result.name}[/orange1] — fetched updates")
+            console.print("".join(result.fetch_outputs))
+        if result.return_code:
+            failures.append(result)
 
-        # Print all fetch outputs grouped by repo
-        if all_fetch_outputs:
-            for repo_name, outputs in all_fetch_outputs:
-                console.print(f"[green1]✔ [/green1][orange1] {repo_name}[/orange1]")
-                console.print("".join(outputs))
+    if failures:
+        console.print("[red]Failed repositories:[/red]")
+        for result in failures:
+            console.print(f"{result.name}: {result.error}", markup=False)
+        if len(failures) == 1 and failures[0].exception is not None:
+            raise failures[0].exception
+        details = "; ".join(f"{result.name}: {result.error}" for result in failures)
+        raise RuntimeError(f"{len(failures)} repositories failed: {details}")
