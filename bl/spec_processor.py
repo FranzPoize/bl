@@ -183,7 +183,7 @@ def format_merge_ref(refspec_info: RefspecInfo) -> str:
     """Display the original branch or PR name, including for frozen refs."""
     ref = refspec_info.ref_name or refspec_info.refspec
     if ref.startswith("refs/pull/") and ref.endswith("/head"):
-        ref = f"#{ref[len('refs/pull/'):-len('/head')]}"
+        ref = f"#{ref[len('refs/pull/') : -len('/head')]}"
     return f"{refspec_info.remote}/{ref}"
 
 
@@ -473,7 +473,7 @@ class RepoProcessor:
         if ret != 0:
             is_conflict = "CONFLICT" in err
             target = " + ".join(format_merge_ref(ref) for ref in applied_refs)
-            err = f"Could not apply {format_merge_ref(refspec_info)} to {target}:\n{err}"
+            err = f"Merge conflict: Could not apply {format_merge_ref(refspec_info)} to {target}"
             self.progress.update(self.task_id, status=f"[red]{escape(err)}[/red]")
             if is_conflict:
                 await run_git("merge", "--abort", cwd=module_path)
@@ -494,6 +494,7 @@ class RepoProcessor:
     async def fetch_multi(self, remote: str, refspec_info_list: List[RefspecInfo], module_path: Path):
         args = [
             "fetch",
+            "--force",
             "-a",
             "--porcelain",
             remote,
@@ -720,6 +721,7 @@ class RepoProcessor:
                 refspec_info = self.repo_info.refspec_info[0]
                 ret, out, err = await run_git(
                     "fetch",
+                    "--force",
                     "--depth",
                     "1",
                     refspec_info.remote,
@@ -740,7 +742,7 @@ class RepoProcessor:
             await run_git("branch", "-D", "temp", cwd=module_path)
 
             if ret != 0:
-                self.progress.update(self.task_id, status=f"[red]Pulling error: {err}[/red]")
+                self.progress.update(self.task_id, status=f"[red]Pulling error: {err}{out}[/red]")
                 return -1, []
 
             self.progress.advance(self.task_id)
