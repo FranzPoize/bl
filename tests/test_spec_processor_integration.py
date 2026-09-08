@@ -102,8 +102,7 @@ async def test_conflict_reports_applied_refs_and_aborts(monkeypatch, tmp_path: P
     ret, _ = await rp.process_repo(module_path, [], [])
 
     assert ret != 0
-    assert "Could not apply oca/#1234 to oca/18.0 + oca/#1125 + oca/18.0-fix-the-things:" in statuses[-1]
-    assert "CONFLICT" in statuses[-1]
+    assert "Merge conflict: Could not apply oca/#1234 to oca/18.0 + oca/#1125 + oca/18.0-fix-the-things" in statuses[-1]
     assert "oca/later" not in statuses[-1]
     assert _run_git(module_path, "rev-parse", "HEAD") == applied_sha
     assert _run_git(module_path, "status", "--porcelain") == ""

@@ -345,7 +345,7 @@ async def test_merge_spec_into_tree_conflict(monkeypatch, tmp_path: Path) -> Non
     root_ref = _make_ref("origin", "main")
     ret, err = await rp.merge_spec_into_tree(ref, [root_ref], module_path)
     assert ret == -1
-    assert err == "Could not apply origin/feature to origin/main:\nCONFLICT in file.txt"
+    assert err == "Merge conflict: Could not apply origin/feature to origin/main"
 
 
 @pytest.mark.asyncio
