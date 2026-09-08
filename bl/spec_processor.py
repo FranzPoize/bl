@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from rich.console import Console
 from rich.live import Live
+from rich.markup import escape
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
@@ -176,6 +177,14 @@ def create_clone_args(clone_info: CloneInfo) -> List[str]:
     ]
 
     return args
+
+
+def format_merge_ref(refspec_info: RefspecInfo) -> str:
+    """Display the original branch or PR name, including for frozen refs."""
+    ref = refspec_info.ref_name or refspec_info.refspec
+    if ref.startswith("refs/pull/") and ref.endswith("/head"):
+        ref = f"#{ref[len('refs/pull/'):-len('/head')]}"
+    return f"{refspec_info.remote}/{ref}"
 
 
 def normalize_merge_result(ret: int, out: str, err: str):
@@ -451,26 +460,23 @@ class RepoProcessor:
 
     async def merge_spec_into_tree(
         self,
-        spec: RepoInfo,
         refspec_info: RefspecInfo,
-        root_refspec_info: RefspecInfo,
+        applied_refs: List[RefspecInfo],
         module_path: Path,
     ) -> tuple[int, str]:
         local_ref = get_local_ref(refspec_info)
-        remote_ref = refspec_info.refspec
 
         self.progress.update(self.task_id, status=f"Merging {local_ref}")
         ret, out, err = await run_git("merge", "--no-edit", local_ref, cwd=module_path)
         ret, err = normalize_merge_result(ret, out, err)
 
-        if "CONFLICT" in err:
-            self.progress.update(self.task_id, status=f"[red]Merge conflict {local_ref} in {remote_ref}: {err}")
-            # In case of conflict, we might want to abort the merge
-            await run_git("merge", "--abort", cwd=module_path)
-            return ret, err
-
         if ret != 0:
-            self.progress.update(self.task_id, status=f"[red]Merge error {local_ref} in {remote_ref}: {err}")
+            is_conflict = "CONFLICT" in err
+            target = " + ".join(format_merge_ref(ref) for ref in applied_refs)
+            err = f"Could not apply {format_merge_ref(refspec_info)} to {target}:\n{err}"
+            self.progress.update(self.task_id, status=f"[red]{escape(err)}[/red]")
+            if is_conflict:
+                await run_git("merge", "--abort", cwd=module_path)
             return ret, err
 
         return 0, ""
@@ -744,13 +750,13 @@ class RepoProcessor:
                 return ret, []
 
             # Merge everything into the main branch
+            applied_refs = [self.repo_info.refspec_info[0]]
             for refspec_info in self.repo_info.refspec_info[1:]:
-                ret, err = await self.merge_spec_into_tree(
-                    self.repo_info, refspec_info, self.repo_info.refspec_info[0], module_path
-                )
+                ret, err = await self.merge_spec_into_tree(refspec_info, applied_refs, module_path)
                 self.progress.advance(self.task_id)
                 if ret != 0:
                     return ret, []
+                applied_refs.append(refspec_info)
 
             # We sparse checkout after the merge because it's faster to do it
             # in this order
