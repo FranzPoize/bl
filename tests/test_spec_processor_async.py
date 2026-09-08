@@ -884,50 +884,52 @@ async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -
 
     monkeypatch.setattr(rp, "process_repo", fake_process_repo)
 
-    with pytest.raises(RuntimeError, match="test error"):
-        await rp.queue_repo_task()
+    result = await rp.queue_repo_task()
+    assert result.return_code == -1
+    assert result.name == rp.name
+    assert result.error == "test error"
 
 
-# @pytest.mark.asyncio
-# async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> None:
-#     from bl.spec_processor import process_project
-#     from bl.types import ProjectSpec, RepoInfo
-#
-#     workdir = tmp_path / "work"
-#     workdir.mkdir()
-#
-#     repo_info = RepoInfo(
-#         modules=[],
-#         remotes={},
-#         refspecs=[],
-#         shell_commands=[],
-#         patch_globs_to_apply=[],
-#         target_folder=None,
-#         locales=[],
-#         paths={},
-#     )
-#     project_spec = ProjectSpec(workdir=workdir, repos={"test": repo_info})
-#
-#     class DummySemaphore:
-#         async def __aenter__(self):
-#             return self
-#
-#         async def __aexit__(self, *args):
-#             pass
-#
-#     class FakeRepoProcessor:
-#         def __init__(self, *args, **kwargs):
-#             pass
-#
-#         async def queue_repo_task(self):
-#             return 1, "test", []
-#
-#     from bl import spec_processor as sp
-#
-#     monkeypatch.setattr(sp, "RepoProcessor", FakeRepoProcessor)
-#
-#     with pytest.raises(Exception):
-#         await process_project(project_spec, concurrency=1)
+@pytest.mark.asyncio
+async def test_process_project_raises_on_error(monkeypatch, tmp_path: Path) -> None:
+    from bl.spec_processor import process_project
+    from bl.types import ProjectSpec, RepoInfo
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    repo_info = RepoInfo(
+        modules=[],
+        remotes={},
+        refspecs=[],
+        shell_commands=[],
+        patch_globs_to_apply=[],
+        target_folder=None,
+        locales=[],
+        paths={},
+    )
+    project_spec = ProjectSpec(workdir=workdir, repos={"test": repo_info})
+
+    class DummySemaphore:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    class FakeRepoProcessor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def queue_repo_task(self):
+            return sp.RepoTaskResult(1, "test", [], "test failure")
+
+    from bl import spec_processor as sp
+
+    monkeypatch.setattr(sp, "RepoProcessor", FakeRepoProcessor)
+
+    with pytest.raises(RuntimeError, match="test failure"):
+        await process_project(project_spec, concurrency=1)
 
 
 @pytest.mark.asyncio
@@ -1187,3 +1189,147 @@ async def test_deferred_output_order(monkeypatch, tmp_path: Path) -> None:
     assert len(fetch_outputs) == 2
     assert "test-repo" in fetch_outputs[0]
     assert "test-repo" in fetch_outputs[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [None, "patch", "exception"])
+async def test_fetch_outputs_survive_later_failure(monkeypatch, tmp_path: Path, failure) -> None:
+    """Collect a shallow fetch update through the full repository processing path."""
+    from io import StringIO
+    from unittest.mock import AsyncMock
+
+    from rich.console import Console
+
+    from bl import spec_processor as sp
+
+    remote_url = "https://example.com/repo.git"
+    repo_info = _make_repo_info(
+        remotes={"origin": remote_url},
+        refspecs=[_make_ref("origin", "main")],
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
+
+    module_path = tmp_path / "repo"
+    (module_path / ".git").mkdir(parents=True)
+
+    print_buffer = StringIO()
+    test_console = Console(file=print_buffer, force_terminal=True)
+    fetch_calls = []
+    base = "a" * 40
+    target = "b" * 40
+
+    async def fake_run_git(*args, cwd=None):
+        if args[0] == "remote" and args[1] == "get-url":
+            return 0, remote_url + "\n", ""
+        if args[:2] == ("rev-parse", "--is-shallow-repository"):
+            return 0, "true\n", ""
+        if args[:2] == ("rev-parse", "--abbrev-ref"):
+            return 0, "main\n", ""
+        if args[:2] == ("rev-parse", "--verify"):
+            return 1, "", "unknown revision"
+        if args[0] == "fetch":
+            fetch_calls.append((args, cwd))
+            return 0, f"+ {base} {target} refs/remotes/origin/main\n", ""
+        if args[0] == "log":
+            assert args[-1] == f"{base}..{target}"
+            return 0, "bbbbbbb|(Author)|Commit message|2 days ago\n", ""
+        return 0, "", ""
+
+    monkeypatch.setattr(sp, "run_git", fake_run_git)
+    monkeypatch.setattr(sp, "console", test_console)
+    monkeypatch.setattr(sp, "remove_locking_pre_commit", AsyncMock(return_value=(0, "", "")))
+    monkeypatch.setattr(sp, "add_locking_pre_commit", lambda *args: None)
+
+    if failure == "patch":
+        repo_info.patch_globs_to_apply = ["fix.patch"]
+        monkeypatch.setattr(rp, "check_and_apply_patch", AsyncMock(return_value=(1, "patch conflict")))
+    elif failure == "exception":
+        monkeypatch.setattr(rp, "run_shell_commands", AsyncMock(side_effect=RuntimeError("shell error")))
+
+    if failure == "exception":
+        with pytest.raises(RuntimeError, match="shell error"):
+            await rp.process_repo(module_path, [], [])
+        fetch_outputs = rp.fetch_outputs
+    else:
+        ret, fetch_outputs = await rp.process_repo(module_path, [], [])
+        assert ret == (1 if failure == "patch" else 0)
+    assert len(fetch_outputs) == 1
+    assert len(fetch_calls) == 1
+    args, cwd = fetch_calls[0]
+    assert args[args.index("--depth") + 1] == "1"
+    assert args[-2:] == ("origin", "main")
+    assert cwd == module_path
+    assert "test-repo" in fetch_outputs[0]
+    assert "origin/main" in fetch_outputs[0]
+    assert base[:9] in fetch_outputs[0]
+    assert target[:9] in fetch_outputs[0]
+    assert "Commit message" in fetch_outputs[0]
+    assert print_buffer.getvalue() == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("concurrency", [1, 3])
+async def test_project_finishes_and_reports_all_results(monkeypatch, tmp_path, concurrency):
+    import asyncio
+    from io import StringIO
+
+    from rich.console import Console
+
+    from bl import spec_processor as sp
+    from bl.types import ProjectSpec
+
+    completed = []
+    buffer = StringIO()
+    monkeypatch.setattr(sp, "console", Console(file=buffer, width=120))
+    monkeypatch.setattr(sp, "load_config", lambda name: {})
+
+    async def process(self, *args):
+        self.fetch_outputs.append(f"{self.name} update\n")
+        if self.name == "crash":
+            raise RuntimeError("patch conflict")
+        await asyncio.sleep(0)
+        completed.append(self.name)
+        return (2 if self.name == "failure" else 0), self.fetch_outputs
+
+    monkeypatch.setattr(sp.RepoProcessor, "process_repo", process)
+    spec = ProjectSpec(workdir=tmp_path, repos={name: _make_repo_info() for name in ("crash", "failure", "success")})
+    with pytest.raises(RuntimeError, match="2 repositories failed"):
+        await sp.process_project(spec, concurrency)
+
+    assert completed == ["failure", "success"]
+    output = buffer.getvalue()
+    for name in spec.repos:
+        assert f"{name} update" in output
+    assert "crash: patch conflict" in output
+    assert "failure: Processing failed (exit code 2)" in output
+    assert output.index("success update") < output.index("Failed repositories:")
+
+
+@pytest.mark.asyncio
+async def test_queue_repo_task_propagates_cancellation(monkeypatch, tmp_path):
+    import asyncio
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+
+    async def cancel(*args):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(rp, "process_repo", cancel)
+    with pytest.raises(asyncio.CancelledError):
+        await rp.queue_repo_task()
+
+
+@pytest.mark.asyncio
+async def test_queue_repo_task_reports_preparation_error(monkeypatch, tmp_path):
+    from bl import spec_processor as sp
+
+    rp = _make_repo_processor(tmp_path, _make_repo_info())
+
+    def fail(*args):
+        raise ValueError("invalid path")
+
+    monkeypatch.setattr(sp, "get_module_path", fail)
+    result = await rp.queue_repo_task()
+    assert result.return_code == -1
+    assert result.error == "invalid path"
+    assert result.fetch_outputs == []
