@@ -343,9 +343,9 @@ async def test_merge_spec_into_tree_conflict(monkeypatch, tmp_path: Path) -> Non
 
     ref = refspecs[0]
     root_ref = _make_ref("origin", "main")
-    ret, err = await rp.merge_spec_into_tree(repo_info, ref, root_ref, module_path)
+    ret, err = await rp.merge_spec_into_tree(ref, [root_ref], module_path)
     assert ret == -1
-    assert "CONFLICT" in err
+    assert err == "Merge conflict: Could not apply origin/feature to origin/main"
 
 
 @pytest.mark.asyncio
@@ -373,7 +373,7 @@ async def test_merge_spec_into_tree_error(monkeypatch, tmp_path: Path) -> None:
 
     ref = refspecs[0]
     root_ref = _make_ref("origin", "main")
-    ret, err = await rp.merge_spec_into_tree(repo_info, ref, root_ref, module_path)
+    ret, err = await rp.merge_spec_into_tree(ref, [root_ref], module_path)
     assert ret == 1
 
 
@@ -823,7 +823,7 @@ async def test_merge_spec_into_tree_success(monkeypatch, tmp_path: Path) -> None
 
     ref = refspecs[0]
     root_ref = _make_ref("origin", "main")
-    ret, err = await rp.merge_spec_into_tree(repo_info, ref, root_ref, module_path)
+    ret, err = await rp.merge_spec_into_tree(ref, [root_ref], module_path)
     assert ret == 0
     assert err == ""
 
