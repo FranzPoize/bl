@@ -270,11 +270,11 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
         repository_id=content_id(url),
         ref=ref.refspec.strip(),
         pinned=ref.type == OriginType.REF,
-        selection=OdooCheckoutSelection(tuple(sorted(set(spec.modules))), tuple(sorted(set(spec.locales)))),
         merges=inputs[1:],
         patch_digests=tuple(hashlib.sha256(patch).hexdigest() for patch in patches),
         ref_kind="pr" if ref.type == OriginType.PR else "",
     )
+    selection = OdooCheckoutSelection(tuple(sorted(set(spec.modules))), tuple(sorted(set(spec.locales))))
     repository = root / "repositories" / f"{recipe.repository_id}.git"
     source = root / "worktrees" / recipe.repository_id / recipe.worktree_id
     record_path = root / "metadata" / f"{recipe.worktree_id}.json"
@@ -322,28 +322,60 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
                 old_sha = None
 
             previous = json.loads(record_path.read_text()) if record_path.exists() else {}
+            coverage = previous.get("coverage", previous.get("recipe", {}).get("selection"))
+            old_selection = (
+                OdooCheckoutSelection(tuple(coverage["modules"]), tuple(coverage["locales"]))
+                if coverage is not None
+                else selection
+            )
+            selection = old_selection.union(selection)
             previous_refs = previous.get("resolved_refs", [previous.get("head_sha")])
             sha = old_sha
             if old_sha is None or previous_refs != resolved or previous.get("head_sha") != old_sha:
                 staging = source.with_name(f".preparing-{uuid4().hex}")
                 try:
                     # Materialize all requested blobs before touching live files.
-                    sha = await _prepare(repository, staging, resolved, patches, recipe.selection)
+                    sha = await _prepare(repository, staging, resolved, patches, selection)
                     if old_sha is None:
                         await _git("worktree", "move", str(staging), str(source), cwd=repository, bare=True)
                     else:
                         try:
                             await _git("reset", "--hard", sha, cwd=source)
+                            if selection != old_selection:
+                                mode, patterns = selection.sparse_parameters()
+                                await _git("sparse-checkout", "set", mode, "--", *patterns, cwd=source)
                         except BaseException:
                             await _git("reset", "--hard", old_sha, cwd=source)
+                            mode, patterns = old_selection.sparse_parameters()
+                            await _git("sparse-checkout", "set", mode, "--", *patterns, cwd=source)
                             raise
                         finally:
                             await _protect_files(source)
                 finally:
                     if staging.exists():
                         await _remove_worktree(repository, staging)
+            elif selection != old_selection:
+                # Coverage-only changes keep the existing checkout and HEAD,
+                # including generated patch/merge commits.
+                try:
+                    mode, patterns = selection.sparse_parameters()
+                    await _git("sparse-checkout", "set", mode, "--", *patterns, cwd=source)
+                except BaseException:
+                    mode, patterns = old_selection.sparse_parameters()
+                    await _git("sparse-checkout", "set", mode, "--", *patterns, cwd=source)
+                    raise
+                finally:
+                    await _protect_files(source)
             await _protect_files(source)
-            _write_json(record_path, {"recipe": asdict(recipe), "head_sha": sha, "resolved_refs": resolved})
+            _write_json(
+                record_path,
+                {
+                    "recipe": asdict(recipe),
+                    "coverage": asdict(selection),
+                    "head_sha": sha,
+                    "resolved_refs": resolved,
+                },
+            )
             await _attach(target, source, root, recipe)
 
 

@@ -14,16 +14,24 @@ class OdooCheckoutSelection:
     modules: tuple[str, ...]
     locales: tuple[str, ...]
 
+    def union(self, other: "OdooCheckoutSelection") -> "OdooCheckoutSelection":
+        # Empty selections mean all modules/locales, not no coverage.
+        def combine(left: tuple[str, ...], right: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(sorted(set(left) | set(right))) if left and right else ()
+
+        return OdooCheckoutSelection(combine(self.modules, other.modules), combine(self.locales, other.locales))
+
     def sparse_parameters(self) -> tuple[str, list[str]]:
-        if self.locales:
-            patterns = ["/*", "!/addons/*"]
-            for module in self.modules:
-                base = f"/addons/{module}"
-                patterns.extend([f"{base}/*", f"!{base}/*/*.po"])
+        # Keep non-addon files available when broadening from locale-filtered
+        # coverage to all locales, too.
+        patterns = ["/*", "!/addons/*"]
+        for module in self.modules or ("*",):
+            base = f"/addons/{module}"
+            patterns.append(f"{base}/*")
+            if self.locales:
+                patterns.append(f"!{base}/*/*.po")
                 patterns.extend(f"{base}/*/{locale}.po" for locale in self.locales)
-            return "--no-cone", patterns
-        addons = [f"addons/{module}" for module in self.modules] if self.modules else ["addons"]
-        return "--cone", [*addons, "debian", "doc", "odoo", "setup"]
+        return "--no-cone", patterns
 
 
 @dataclass(frozen=True)
@@ -38,7 +46,6 @@ class OdooWorktreeRecipe:
     repository_id: str
     ref: str
     pinned: bool
-    selection: OdooCheckoutSelection
     format_version: int = 1
     merges: tuple[OdooSourceRef, ...] = ()
     patch_digests: tuple[str, ...] = ()
@@ -47,8 +54,7 @@ class OdooWorktreeRecipe:
     @property
     def worktree_id(self) -> str:
         data = asdict(self)
-        # Keep existing basic-branch identities so updating one consumer still
-        # advances consumers created before patch/merge support was installed.
+        # Optional transformations do not affect the basic source identity.
         for key in ("merges", "patch_digests", "ref_kind"):
             if not data[key]:
                 del data[key]

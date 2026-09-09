@@ -129,10 +129,7 @@ async def test_reordered_duplicate_module_and_locale_selections_reuse_worktree(o
 @pytest.mark.parametrize(
     "selection", [{"modules": ["sale"], "locales": ["fr"]}, {"modules": ["account"], "locales": ["es"]}]
 )
-async def test_different_sparse_selections_do_not_mutate_existing_sources(
-    odoo_store: OdooEnvironment, selection: dict
-) -> None:
-    # Preserve current sparse semantics until complete-checkout mode is agreed.
+async def test_different_sparse_selections_expand_the_same_source(odoo_store: OdooEnvironment, selection: dict) -> None:
     a, b = odoo_store.project("a"), odoo_store.project("b")
     a.configure(modules=["account"], locales=["fr"])
     b.configure(**selection)
@@ -142,9 +139,9 @@ async def test_different_sparse_selections_do_not_mutate_existing_sources(
     await b.build()
 
     after = {str(p.relative_to(a.source)): p.read_bytes() for p in (a.source / "addons").rglob("*") if p.is_file()}
-    assert after == before
+    assert before.items() <= after.items()
     assert (b.source / "addons" / selection["modules"][0] / "i18n" / f"{selection['locales'][0]}.po").is_file()
-    assert a.source.resolve() != b.source.resolve()
+    assert a.source.resolve() == b.source.resolve()
     assert odoo_store.common_dir(a) == odoo_store.common_dir(b)
 
 

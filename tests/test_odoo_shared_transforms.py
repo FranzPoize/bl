@@ -124,7 +124,7 @@ async def test_patches_can_touch_files_outside_final_sparse_selection(odoo_store
 
 
 @pytest.mark.asyncio
-async def test_basic_identity_survives_upgrade_from_first_store_schema(odoo_store: OdooEnvironment) -> None:
+async def test_basic_identity_ignores_empty_transform_fields(odoo_store: OdooEnvironment) -> None:
     from bl.odoo_types import content_id
 
     project = odoo_store.project("a")
