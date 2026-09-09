@@ -74,6 +74,8 @@ async def test_concurrent_processes_publish_one_shared_worktree(
     odoo_store: OdooEnvironment, already_built: bool
 ) -> None:
     a, b = odoo_store.project("a"), odoo_store.project("b")
+    a.configure(modules=["account"], locales=["fr"])
+    b.configure(modules=["sale"], locales=["es"])
     if already_built:
         await a.build()
         await b.build()
@@ -102,6 +104,8 @@ async def test_concurrent_processes_publish_one_shared_worktree(
         assert odoo_store.git(project.source, "rev-parse", "HEAD") == latest
         assert odoo_store.git(project.source, "status", "--porcelain") == ""
     assert a.source.resolve() == b.source.resolve()
+    for module, locale in (("account", "fr"), ("sale", "es")):
+        assert (a.source / "addons" / module / "i18n" / f"{locale}.po").is_file()
     registrations = odoo_store.git(a.source, "worktree", "list", "--porcelain")
     assert registrations.count(f"worktree {a.source.resolve()}\n") == 1
 

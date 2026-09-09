@@ -5,8 +5,8 @@ expected to pass, with no skipped or expected-failure cases.
 `test_odoo_basic_sharing.py` covers migration and changes to project specs.
 
 The source contract is a moving shared branch: rebuilding either consumer
-updates both consumers when their branch, merge sequence, patches, and checkout
-selections match. Explicitly frozen revisions remain separate and pinned.
+updates both consumers when their branch, merge sequence, and patches match.
+Module and locale selections expand the shared checkout's coverage. Explicitly frozen revisions remain separate and pinned.
 Different patch or merge recipes share Git storage, not their working files.
 
 The suites cover:
@@ -39,6 +39,7 @@ Most tests use existing build/freeze/clean/edit entry points. The two store
 cleanup tests use `bl.odoo_store.prune_unused_worktrees(root, dry_run=...)`.
 The `bl clean-store` CLI exposes this operation with dry-run and confirmation.
 
-Sparse selection tests preserve existing module/language behavior. They do
-not assume the proposed complete-checkout mode has been accepted. The tests
-also avoid prescribing recipe hash encodings or metadata serialization details.
+Sparse selection tests verify that coverage grows across consumers without
+changing worktree identity or losing files on later builds. Empty module or
+locale selections mean all. Coverage tests include pinned and transformed
+sources, branch updates, rollback, and concurrent expansion.
