@@ -78,6 +78,27 @@ def test_run_dispatches_edit_command(monkeypatch, tmp_path: Path):
     assert calls == [(Path("test-repo"), tmp_path / "spec.yaml", tmp_path)]
 
 
+@pytest.mark.parametrize("local_odoo", [False, True])
+def test_run_dispatches_build_with_local_odoo(monkeypatch, tmp_path: Path, local_odoo: bool):
+    calls = []
+    spec = SimpleNamespace(repos={}, workdir=tmp_path)
+
+    async def build(project_spec, **options):
+        calls.append((project_spec, options))
+
+    argv = ["bl", "build", "-N"]
+    if local_odoo:
+        argv.append("--local-odoo")
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(bl_main, "setup_logging", lambda _: None)
+    monkeypatch.setattr(bl_main, "load_spec_file", lambda *args: spec)
+    monkeypatch.setattr(bl_main, "process_project", build)
+
+    bl_main.run()
+
+    assert calls == [(spec, {"concurrency": 28, "use_bindfs": False, "local_odoo": local_odoo})]
+
+
 @pytest.mark.parametrize("option", ["--dry-run", "--force", "decline"])
 def test_clean_store_does_not_require_project_spec(monkeypatch, tmp_path: Path, option: str):
     calls = []

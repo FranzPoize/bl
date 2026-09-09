@@ -32,7 +32,7 @@ Git commands run without terminal prompts, so credentials for private repos must
 ### Build
 
 ```bash
-bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
+bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -45,6 +45,7 @@ Managed repos get a BL pre-commit hook to avoid accidental commits. Repos marked
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `--use-bindfs` use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
+* `--local-odoo` clone Odoo into the project's `odoo/src` (or configured `target_folder`) instead of using the shared store
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
@@ -147,6 +148,14 @@ The shared store defaults to `$XDG_DATA_HOME/bl/odoo` (usually
 Projects retain their existing `src/` or `target_folder` path as a symlink.
 Different Odoo versions share Git objects; frozen revisions get separate pinned
 worktrees and are not advanced by another project's build.
+
+Use `bl build --local-odoo` to build an independent clone in the project's
+`odoo/src` (or configured `target_folder`). An existing shared source symlink is
+unlinked before cloning; the shared checkout and other projects are untouched.
+Local builds still apply the configured modules, locales, merges, and patches,
+and can run `shell_command_after`. Pass the flag on each build to keep Odoo local;
+a build without it uses the shared store again, retaining the local clone as a
+backup if it is clean. Editable Odoo settings remain unsupported.
 
 `bl edit odoo` and editable Odoo settings are rejected. Published source files
 are read-only to discourage accidental changes. `bl clean --remove` unlinks the
