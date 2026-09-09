@@ -243,6 +243,7 @@ class RepoProcessor:
         count_task: TaskID,
         concurrency: int,
         use_bindfs: bool = False,
+        local_odoo: bool = False,
     ):
         self.workdir = workdir
         self.name = name
@@ -253,6 +254,7 @@ class RepoProcessor:
         self.count_task = count_task
         self.concurrency = concurrency
         self.use_bindfs = use_bindfs
+        self.local_odoo = local_odoo
         self.config_file = config_file
         self.fetch_outputs: list[str] = []
         self.task_id: TaskID | None = None
@@ -656,16 +658,22 @@ class RepoProcessor:
         if self.name == "odoo":
             if is_editable or self.repo_info.editable:
                 raise OdooStoreError("Odoo cannot be editable; remove its editable setting before building")
-            if can_share_odoo(self.repo_info):
+            if not self.local_odoo and can_share_odoo(self.repo_info):
                 self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
                 await build_shared_odoo(self.repo_info, module_path, self.workdir)
                 self.progress.remove_task(self.task_id)
                 return 0, []
             if managed_odoo_root(module_path):
-                raise OdooStoreError(
-                    "Odoo local paths require a project-local checkout. "
-                    "Remove the shared project link with bl clean --remove before rebuilding this specification."
-                )
+                if self.local_odoo and module_path.is_symlink():
+                    # Unlink only this consumer; never reset or patch shared files.
+                    module_path.unlink()
+                else:
+                    raise OdooStoreError(
+                        "Odoo requires a project-local checkout. "
+                        "Remove the shared project link with bl clean --remove before rebuilding this specification."
+                    )
+            elif self.local_odoo and module_path.is_symlink():
+                raise OdooStoreError("Local Odoo requires a directory; the source is an unmanaged symlink")
 
         # First thing we need to do is setup the repos
         # - If the repo does not exist we need to clone it
@@ -839,7 +847,9 @@ class RepoProcessor:
                 self.count_progress.advance(self.count_task)
 
 
-async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False) -> None:
+async def process_project(
+    project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False, local_odoo: bool = False
+) -> None:
     """Processes all modules in a ProjectSpec."""
     project_name = project_spec.workdir.absolute().parent.stem
     config_file = load_config(project_name)
@@ -883,6 +893,7 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
                 count_task,
                 concurrency,
                 use_bindfs,
+                local_odoo,
             )
             tasks.append(repo_processor.queue_repo_task())
 

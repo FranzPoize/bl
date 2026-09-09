@@ -139,7 +139,12 @@ def run():
     )
 
     sub = parser.add_subparsers(help="subcommand help", dest="command")
-    sub.add_parser("build", parents=[parent_parser], help="build help")
+    build_parser = sub.add_parser("build", parents=[parent_parser], help="build help")
+    build_parser.add_argument(
+        "--local-odoo",
+        action="store_true",
+        help="Clone Odoo in the project's src directory instead of using the shared store.",
+    )
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
@@ -208,7 +213,14 @@ def run():
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
-            asyncio.run(process_project(project_spec, concurrency=args.concurrency, use_bindfs=args.use_bindfs))
+            asyncio.run(
+                process_project(
+                    project_spec,
+                    concurrency=args.concurrency,
+                    use_bindfs=args.use_bindfs,
+                    local_odoo=args.local_odoo,
+                )
+            )
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
