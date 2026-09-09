@@ -7,6 +7,17 @@ import pytest
 
 from bl.spec_processor import RepoProcessor
 from bl.types import OriginType, RefspecInfo, RepoInfo
+from tests.odoo_worktree_helpers import OdooEnvironment, make_odoo_environment
+
+
+@pytest.fixture
+def odoo_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> OdooEnvironment:
+    return make_odoo_environment(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def odoo_patches(odoo_store: OdooEnvironment) -> OdooEnvironment:
+    return odoo_store
 
 
 def _make_ref(remote: str, refspec: str, type_: OriginType = OriginType.BRANCH) -> RefspecInfo:

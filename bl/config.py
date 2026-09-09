@@ -1,10 +1,15 @@
 from configparser import ConfigParser, SectionProxy
-from os import makedirs
+from os import environ, makedirs
 from pathlib import Path
 
-from xdg_base_dirs import xdg_config_home
+from xdg_base_dirs import xdg_config_home, xdg_data_home
 
 CONFIG_FILE_NAME = "config.ini"
+
+
+def get_odoo_store_root() -> Path:
+    """Machine-local storage, independent of any individual project spec."""
+    return Path(environ.get("BL_ODOO_STORE", xdg_data_home() / "bl" / "odoo")).expanduser().resolve()
 
 
 def get_from_config(config: ConfigParser | SectionProxy | dict, *keys):

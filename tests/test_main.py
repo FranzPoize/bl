@@ -13,7 +13,7 @@ import bl
 copier_stub = ModuleType("copier")
 copier_stub.run_copy = lambda *args, **kwargs: None
 sys.modules.setdefault("copier", copier_stub)
-import bl.__main__ as bl_main
+import bl.__main__ as bl_main  # noqa: E402 -- install the Copier stub before importing the CLI
 
 
 def test_check_last_version_queries_pip_and_warns_when_older(monkeypatch):
@@ -66,7 +66,9 @@ def test_run_dispatches_edit_command(monkeypatch, tmp_path: Path):
     async def fake_make_editable(repository_name, config, workdir):
         calls.append((repository_name, config, workdir))
 
-    monkeypatch.setattr(sys, "argv", ["bl", "edit", "test-repo", "-N", "-c", str(tmp_path / "spec.yaml"), "-w", str(tmp_path)])
+    monkeypatch.setattr(
+        sys, "argv", ["bl", "edit", "test-repo", "-N", "-c", str(tmp_path / "spec.yaml"), "-w", str(tmp_path)]
+    )
     monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
     monkeypatch.setattr(bl_main, "load_spec_file", lambda *args: SimpleNamespace(repos={}, workdir=tmp_path))
     monkeypatch.setattr(bl_main, "make_editable", fake_make_editable)
@@ -74,3 +76,28 @@ def test_run_dispatches_edit_command(monkeypatch, tmp_path: Path):
     bl_main.run()
 
     assert calls == [(Path("test-repo"), tmp_path / "spec.yaml", tmp_path)]
+
+
+@pytest.mark.parametrize("option", ["--dry-run", "--force", "decline"])
+def test_clean_store_does_not_require_project_spec(monkeypatch, tmp_path: Path, option: str):
+    calls = []
+
+    async def prune(root, *, dry_run):
+        calls.append((root, dry_run))
+        return [root / "worktrees" / "unused"]
+
+    argv = ["bl", "clean-store", "-N"]
+    if option != "decline":
+        argv.append(option)
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(bl_main, "setup_logging", lambda _: None)
+    monkeypatch.setattr(bl_main, "get_odoo_store_root", lambda: tmp_path)
+    monkeypatch.setattr(bl_main, "prune_unused_worktrees", prune)
+    monkeypatch.setattr(
+        bl_main, "load_spec_file", lambda *args: pytest.fail("Store cleanup must not load a project spec")
+    )
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    bl_main.run()
+
+    assert calls == ([(tmp_path, True), (tmp_path, False)] if option == "--force" else [(tmp_path, True)])
