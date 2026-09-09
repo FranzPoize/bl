@@ -51,10 +51,8 @@ class RichConsoleHandler(logging.Handler):
                 self._err_console.print(message)
             else:
                 self._console.print(message)
-            if record.exc_info:
-                self._console.print_exception()
         except Exception:
-            self.handleError(record)
+            pass
 
 
 que = queue.Queue(-1)

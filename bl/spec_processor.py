@@ -898,7 +898,6 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             failures.append(result)
 
     if failures:
-        console.print("[red]Failed repositories:[/red]")
         for result in failures:
             console.print(f"{result.name}: {result.error}", markup=False)
         if len(failures) == 1 and failures[0].exception is not None:

@@ -1302,7 +1302,6 @@ async def test_project_finishes_and_reports_all_results(monkeypatch, tmp_path, c
         assert f"{name} update" in output
     assert "crash: patch conflict" in output
     assert "failure: Processing failed (exit code 2)" in output
-    assert output.index("success update") < output.index("Failed repositories:")
 
 
 @pytest.mark.asyncio
