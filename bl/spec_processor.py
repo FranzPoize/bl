@@ -698,13 +698,14 @@ class RepoProcessor:
                     self.progress.update(self.task_id, status=f"[red]Could not link modules: {err}")
                 return -1, fetch_outputs
 
+            # Register newly named remotes before checking their configured URL.
+            ret, err = await self.setup_remote_branches(module_path)
+
             ret, err = await self.check_main_remote(module_path)
 
             if ret != 0:
                 self.progress.update(self.task_id, status=f"[red]Check main remote: {err}[/red]")
                 return -1, fetch_outputs
-
-            ret, err = await self.setup_remote_branches(module_path)
 
             self.progress.advance(self.task_id)
 
