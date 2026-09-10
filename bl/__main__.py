@@ -21,6 +21,7 @@ from bl.freezer import freeze_project
 from bl.odoo_store import prune_unused_worktrees
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
+from bl.types import ProjectSpec
 
 err_console = Console(stderr=True)
 out_console = Console()
@@ -146,6 +147,12 @@ def run():
         action="store_true",
         help="Clone Odoo in the project's src directory instead of using the shared store.",
     )
+    build_parser.add_argument(
+        "-d",
+        "--repository",
+        metavar="REPOSITORY_NAME",
+        help="Only update the repository with this name in the project specification.",
+    )
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
@@ -228,6 +235,10 @@ def run():
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
+            if args.repository is not None:
+                if args.repository not in project_spec.repos:
+                    parser.error(f"Unknown repository {args.repository!r} in the project specification")
+                project_spec = ProjectSpec({args.repository: project_spec.repos[args.repository]}, project_spec.workdir)
             asyncio.run(
                 process_project(
                     project_spec,

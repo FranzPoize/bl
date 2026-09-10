@@ -10,6 +10,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 import bl
+from tests.test_frozen_processor import _init_test_repo, _run_git
 
 copier_stub = ModuleType("copier")
 copier_stub.run_copy = lambda *args, **kwargs: None
@@ -193,6 +194,59 @@ def test_edit_dot_respects_target_folder_and_explicit_options(monkeypatch, tmp_p
     assert workdir == (project if explicit_config else None)
 
 
+@pytest.mark.parametrize(
+    ("selection", "expected_names"),
+    [([], ["other", "odoo"]), (["-d", "odoo"], ["odoo"]), (["--repository", "odoo"], ["odoo"])],
+)
+def test_build_repository_selection_with_overrides_and_frozen(monkeypatch, tmp_path, selection, expected_names):
+    spec = tmp_path / "spec.yaml"
+    spec.write_text("other: {modules: []}\n")
+    override = tmp_path / "override.yaml"
+    override.write_text("odoo: {src: 'https://example.com/odoo.git main', modules: [sale]}\n")
+    frozen = tmp_path / "frozen.yaml"
+    frozen.write_text("odoo: {origin: {main: abc123}}\n")
+    workdir = tmp_path / "workdir"
+    calls = []
+
+    async def fake_process(project, concurrency, use_bindfs, local_odoo):
+        calls.append(project)
+        assert list(project.repos) == expected_names
+        assert project.workdir == workdir
+        assert project.repos["odoo"].modules == ["sale"]
+        assert project.repos["odoo"].refspec_info[0].refspec == "abc123"
+        assert concurrency == 2
+        assert use_bindfs is True
+        assert local_odoo is False
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "bl",
+            "build",
+            "-N",
+            "-c",
+            str(spec),
+            "-o",
+            str(override),
+            "-z",
+            str(frozen),
+            "-w",
+            str(workdir),
+            "-j",
+            "2",
+            "-b",
+            *selection,
+        ],
+    )
+    monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
+    monkeypatch.setattr(bl_main, "process_project", fake_process)
+
+    bl_main.run()
+
+    assert len(calls) == 1
+
+
 @pytest.mark.parametrize("failure", ["missing-spec", "too-deep", "outside-repo", "nearest-spec"])
 def test_edit_dot_reports_discovery_errors_without_editing(monkeypatch, tmp_path, capsys, failure):
     project = tmp_path / "project"
@@ -221,6 +275,57 @@ def test_edit_dot_reports_discovery_errors_without_editing(monkeypatch, tmp_path
     assert exc.value.code == 2
     expected = "No spec.yaml found" if failure in ("missing-spec", "too-deep") else "not inside a repository"
     assert expected in capsys.readouterr().err
+
+
+def test_build_unknown_repository_fails_before_processing(monkeypatch, tmp_path, capsys):
+    spec = tmp_path / "spec.yaml"
+    spec.write_text("known: {modules: []}\n")
+    calls = []
+
+    async def fake_process(*args, **kwargs):
+        calls.append(True)
+
+    monkeypatch.setattr(sys, "argv", ["bl", "build", "-N", "-c", str(spec), "-d", "missing"])
+    monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
+    monkeypatch.setattr(bl_main, "process_project", fake_process)
+
+    with pytest.raises(SystemExit) as exc:
+        bl_main.run()
+
+    assert exc.value.code == 2
+    assert "Unknown repository 'missing'" in capsys.readouterr().err
+    assert calls == []
+    assert not (tmp_path / "external-src").exists()
+
+
+def test_build_updates_only_selected_repository(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    remote, _, old_head = _init_test_repo(tmp_path)
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    spec = workdir / "spec.yaml"
+    spec.write_text(f"selected: {{src: '{remote} main'}}\nother: {{src: '{remote} main'}}\n")
+    argv = ["bl", "build", "-N", "-c", str(spec)]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
+
+    bl_main.run()
+
+    selected = workdir / "external-src" / "selected"
+    other = workdir / "external-src" / "other"
+    assert _run_git(selected, "rev-parse", "HEAD") == old_head
+    assert _run_git(other, "rev-parse", "HEAD") == old_head
+
+    (remote / "file.txt").write_text("third\n")
+    _run_git(remote, "commit", "-am", "third")
+    new_head = _run_git(remote, "rev-parse", "HEAD")
+    monkeypatch.setattr(sys, "argv", [*argv, "-d", "selected"])
+
+    bl_main.run()
+
+    assert _run_git(selected, "rev-parse", "HEAD") == new_head
+    assert _run_git(other, "rev-parse", "HEAD") == old_head
+    assert (other / "file.txt").read_text() == "second\n"
 
 
 def test_edit_dot_finds_spec_through_shell_symlink_path(monkeypatch, tmp_path):

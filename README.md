@@ -32,14 +32,20 @@ Git commands run without terminal prompts, so credentials for private repos must
 ### Build
 
 ```bash
-bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
+bl build [-d REPOSITORY_NAME] [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
 It does what ak build does.
 Managed repos get a BL pre-commit hook to avoid accidental commits. Repos marked editable are skipped.
 
+Use `bl build -d repository_name` (or `--repository repository_name`) to update only
+that repository. The name must match a repository key in the specification after
+overrides are applied. Frozen references still apply, and an unknown name is an error.
+Without `-d`, all repositories are processed as usual.
+
 #### Params
+* `REPOSITORY_NAME` only update this repository from the specification
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
