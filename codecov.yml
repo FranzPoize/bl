@@ -19,4 +19,7 @@ coverage:
     default_rules:
       flag_coverage_not_uploaded_behavior: include
     patch: true
-    project: true
+    project:
+      default:
+        target: 85
+        threshold: 5

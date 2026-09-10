@@ -25,3 +25,4 @@ benchmark/ak_benchmark/repo.yaml
 /spec_test/voltaire
 /.mindmodel
 /thoughts
+/build/lib/bl

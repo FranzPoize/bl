@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+from bl.odoo_store import managed_odoo_root
 from bl.spec_processor import console
 from bl.types import ProjectSpec, RepoInfo
 from bl.utils import format_diff, get_module_path, run_git, unlink_path
@@ -9,6 +10,16 @@ from bl.utils import format_diff, get_module_path, run_git, unlink_path
 # TODO(franz) It should list all the target_folders in the spec and delete all of those
 def _clean_directory(path: Path, non_interactive: bool) -> bool:
     """Return True if a deletion failed, False otherwise."""
+    if path.is_symlink():
+        if not non_interactive and input(f"Unlink {path}? [y/N]: ").strip().lower() != "y":
+            return False
+        try:
+            path.unlink()
+            console.print(f"[cyan]Unlinked:[/] {path}")
+        except OSError as e:
+            console.print(f"[red]Failed to unlink {path}:[/] {e}")
+            return True
+        return False
     abs_path = path.resolve()
 
     if not path.exists() or not path.is_dir():
@@ -105,13 +116,20 @@ async def handle_dirty_repos(project_spec: ProjectSpec, dry_run: bool) -> int:
         console.print("[cyan]Would reset dirty repositories.[/]")
         return 0
 
+    shared = [item for item in dirty_repo_infos if managed_odoo_root(item[3])]
+    for _, _, _, path in shared:
+        console.print(f"[red]Shared Odoo source has local changes; project cleanup will not reset it:[/] {path}")
+    dirty_repo_infos = [item for item in dirty_repo_infos if item not in shared]
+    if not dirty_repo_infos:
+        return int(bool(shared))
+
     console.print("[bold red]Warning: there are dirty repositories![/]")
     answer = input("Reset dirty repositories? [y/N]: ").strip().lower()
     if answer != "y":
         console.print("[cyan]Aborted.[/]")
         return 1
 
-    failed = False
+    failed = bool(shared)
     for name, repo_info, output, module_path in dirty_repo_infos:
         console.print(f"[yellow]Reset:[/] {name}")
         ret, out, err = await reset_repo(module_path)
@@ -197,5 +215,14 @@ async def clean_project(
     if remove:
         if await handle_remove(workdir, force, dry_run):
             failed = True
+        odoo_spec = project_spec.repos.get("odoo")
+        if odoo_spec is not None:
+            source = get_module_path(workdir, "odoo", odoo_spec)
+            if source not in (workdir / "src", workdir / "external-src") and source.is_symlink():
+                if managed_odoo_root(source):
+                    if dry_run:
+                        console.print(f"[cyan]Would unlink:[/] {source}")
+                    elif _clean_directory(source, force):
+                        failed = True
 
     return 1 if failed else 0

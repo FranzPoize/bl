@@ -101,9 +101,11 @@ async def run(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
     return returncode, stdout.decode(), stderr.decode()
 
 
-async def run_git(*args: str, cwd: Optional[Path] = None) -> tuple[int, str, str]:
+async def run_git(*args: str, cwd: Optional[Path] = None, git_dir: Optional[Path] = None) -> tuple[int, str, str]:
     """Executes a git command asynchronously."""
-    return await run(*["git", "--git-dir", ".git/", *args], cwd=cwd)
+    # A linked worktree has a .git file. A trailing slash makes Git reject it.
+    # Keep an explicit git-dir so a missing checkout cannot select a parent repo.
+    return await run(*["git", "--git-dir", str(git_dir or ".git"), *args], cwd=cwd)
 
 
 async def unlink_path(path: Path) -> tuple[int, str]:

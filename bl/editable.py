@@ -4,12 +4,68 @@ from rich.console import Console
 
 from bl.config import get_config_file, load_config, write_config
 from bl.spec_parser import load_spec_file
-from bl.utils import get_module_path, remove_locking_pre_commit, run, run_git
+from bl.types import ProjectSpec
+from bl.utils import get_module_path, remove_locking_pre_commit, run_git
 
 console = Console()
 
 
+def find_edit_spec(directory: Path) -> Path:
+    """Find the nearest spec in this directory or its first five parents."""
+    for parent in (directory, *directory.parents[:5]):
+        spec = parent / "spec.yaml"
+        if spec.is_file():
+            return spec
+    raise ValueError(f"No spec.yaml found in {directory} or its first five parent directories")
+
+
+def current_repository(directory: Path, project_spec: ProjectSpec) -> str:
+    """Match a directory to the most specific repository path in the spec."""
+    directory = directory.resolve()
+    matches = []
+    for name, repo in project_spec.repos.items():
+        repo_path = get_module_path(project_spec.workdir, name, repo).resolve()
+        if directory.is_relative_to(repo_path):
+            matches.append((len(repo_path.parts), name))
+    if not matches:
+        raise ValueError(f"Current directory {directory} is not inside a repository listed in the spec")
+    depth = max(depth for depth, name in matches)
+    names = [name for match_depth, name in matches if match_depth == depth]
+    if len(names) > 1:
+        raise ValueError(f"Current directory matches multiple repositories in the spec: {', '.join(names)}")
+    return names[0]
+
+
+def remove_editable(repository_name: str, spec: Path, workdir: Path) -> bool:
+    """Remove a repository's persisted editable status.
+
+    The checkout itself is intentionally left untouched. A subsequent build
+    will see the repository as managed again and restore the managed state.
+    """
+    project_spec = load_spec_file(spec, None, workdir, [])
+    project_name = project_spec.workdir.absolute().parent.stem
+    project_config_file_path = get_config_file(project_name)
+    project_config_file = load_config(project_name)
+    repository_name = str(repository_name)
+
+    if "editable" not in project_config_file or repository_name not in project_config_file["editable"]:
+        console.print(f"[yellow]Repo [bold]{repository_name}[/] is not marked editable[/]")
+        return False
+
+    del project_config_file["editable"][repository_name]
+    if not project_config_file["editable"]:
+        project_config_file.remove_section("editable")
+
+    write_config(project_name, project_config_file)
+    console.print(
+        f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]"
+    )
+    return True
+
+
 async def make_editable(repository_name: str, spec: Path, workdir: Path):
+    if str(repository_name) == "odoo":
+        raise ValueError("Odoo cannot be edited; it is managed by BL")
     project_spec = load_spec_file(spec, None, workdir, [])
     if str(repository_name) not in project_spec.repos:
         console.log(f"[red][yellow]{repository_name}[/] not in spec")

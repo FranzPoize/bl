@@ -4,21 +4,24 @@ import atexit
 import json
 import logging
 import logging.handlers
+import os
 import queue
 import subprocess
 import sys
 from pathlib import Path
 
 from copier import run_copy
-from plumbum.lib import captured_stdout
 from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
-from bl.editable import make_editable
+from bl.config import get_odoo_store_root
+from bl.editable import current_repository, find_edit_spec, make_editable, remove_editable
 from bl.freezer import freeze_project
+from bl.odoo_store import prune_unused_worktrees
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
+from bl.types import ProjectSpec
 
 err_console = Console(stderr=True)
 out_console = Console()
@@ -50,10 +53,8 @@ class RichConsoleHandler(logging.Handler):
                 self._err_console.print(message)
             else:
                 self._console.print(message)
-            if record.exc_info:
-                self._console.print_exception()
         except Exception:
-            self.handleError(record)
+            pass
 
 
 que = queue.Queue(-1)
@@ -140,11 +141,28 @@ def run():
     )
 
     sub = parser.add_subparsers(help="subcommand help", dest="command")
-    sub.add_parser("build", parents=[parent_parser], help="build help")
+    build_parser = sub.add_parser("build", parents=[parent_parser], help="build help")
+    build_parser.add_argument(
+        "--local-odoo",
+        action="store_true",
+        help="Clone Odoo in the project's src directory instead of using the shared store.",
+    )
+    build_parser.add_argument(
+        "-d",
+        "--repository",
+        metavar="REPOSITORY_NAME",
+        help="Only update the repository with this name in the project specification.",
+    )
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
-    edit_parser.add_argument("repository_name", type=Path)
+    edit_parser.set_defaults(config=None)
+    edit_parser.add_argument("repository_name", type=Path, help="Repository name, or '.' for the current repository")
+    edit_parser.add_argument(
+        "--remove",
+        action="store_true",
+        help="Remove the saved editable status; the next build will manage the repo again.",
+    )
     init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
     init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
@@ -168,6 +186,9 @@ def run():
         action="store_true",
         help="Just output dirty repo.",
     )
+    store_parser = sub.add_parser("clean-store", parents=[parent_parser], help="Remove unused shared Odoo worktrees")
+    store_parser.add_argument("--dry-run", action="store_true", help="List unused worktrees without removing them")
+    store_parser.add_argument("--force", action="store_true", help="Remove unused worktrees without confirmation")
 
     args = parser.parse_args()
 
@@ -181,6 +202,36 @@ def run():
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
         sys.exit(0)
 
+    if args.command == "clean-store":
+        try:
+            root = get_odoo_store_root()
+            candidates = asyncio.run(prune_unused_worktrees(root, dry_run=True))
+            for path in candidates:
+                out_console.print(f"Unused Odoo worktree: {path}")
+            if not candidates:
+                out_console.print("No unused Odoo worktrees.")
+            elif not args.dry_run:
+                if args.force or input("Remove these unused Odoo worktrees? [y/N]: ").strip().lower() == "y":
+                    removed = asyncio.run(prune_unused_worktrees(root, dry_run=False))
+                    out_console.print(f"Removed {len(removed)} unused Odoo worktree(s).")
+        except Exception as exc:
+            err_console.print(str(exc))
+            sys.exit(1)
+        return
+    edit_directory = None
+    if args.command == "edit" and args.repository_name == Path("."):
+        edit_directory = Path.cwd()
+        # Keep the project hierarchy when the shell entered a symlinked checkout.
+        shell_directory = Path(os.environ.get("PWD", ""))
+        if shell_directory.is_absolute() and shell_directory.resolve() == edit_directory:
+            edit_directory = shell_directory
+        if args.config is None:
+            try:
+                args.config = find_edit_spec(edit_directory)
+            except ValueError as exc:
+                parser.error(str(exc))
+    args.config = args.config or Path("spec.yaml")
+
     project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
     if project_spec is None:
         sys.exit(1)
@@ -189,11 +240,30 @@ def run():
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
-            asyncio.run(process_project(project_spec, concurrency=args.concurrency, use_bindfs=args.use_bindfs))
+            if args.repository is not None:
+                if args.repository not in project_spec.repos:
+                    parser.error(f"Unknown repository {args.repository!r} in the project specification")
+                project_spec = ProjectSpec({args.repository: project_spec.repos[args.repository]}, project_spec.workdir)
+            asyncio.run(
+                process_project(
+                    project_spec,
+                    concurrency=args.concurrency,
+                    use_bindfs=args.use_bindfs,
+                    local_odoo=args.local_odoo,
+                )
+            )
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
-            asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
+            if edit_directory is not None:
+                try:
+                    args.repository_name = current_repository(edit_directory, project_spec)
+                except ValueError as exc:
+                    parser.error(str(exc))
+            if args.remove:
+                remove_editable(args.repository_name, args.config, args.workdir)
+            else:
+                asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
                 clean_project(
@@ -206,7 +276,8 @@ def run():
             )
             if ret != 0:
                 sys.exit(1)
-    except Exception:
+    except Exception as exc:
+        err_console.print(str(exc))
         sys.exit(1)
 
 

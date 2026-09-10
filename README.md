@@ -32,19 +32,26 @@ Git commands run without terminal prompts, so credentials for private repos must
 ### Build
 
 ```bash
-bl build [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
+bl build [-d REPOSITORY_NAME] [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
 It does what ak build does.
 Managed repos get a BL pre-commit hook to avoid accidental commits. Repos marked editable are skipped.
 
+Use `bl build -d repository_name` (or `--repository repository_name`) to update only
+that repository. The name must match a repository key in the specification after
+overrides are applied. Frozen references still apply, and an unknown name is an error.
+Without `-d`, all repositories are processed as usual.
+
 #### Params
+* `REPOSITORY_NAME` only update this repository from the specification
 * `PATH_TO_SPEC` path to your spec (default: `spec.yaml`)
 * `PATH_TO_FROZEN` path to your frozen spec (default: `frozen.yaml`)
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `--use-bindfs` use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
+* `--local-odoo` clone Odoo into the project's `odoo/src` (or configured `target_folder`) instead of using the shared store
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
@@ -91,7 +98,8 @@ Shows diff for all dirty repos in the project.
 ### Edit
 
 ```bash
-bl edit REPOSITORY_NAME [options]
+bl edit REPOSITORY_NAME [--remove] [options]
+bl edit . [--remove] [options]
 ```
 
 #### What does it do
@@ -99,8 +107,18 @@ Turns a managed repo into an editable/full checkout: disables sparse checkout, f
 
 Use `bl edit <repo>` before committing locally. Editable repos are remembered and skipped by future builds.
 
+Use `bl edit .` from a repository or one of its subdirectories to make that repository editable.
+BL uses the nearest `spec.yaml` in the current directory or up to five parent directories,
+then matches your location against the repositories in that spec, including custom `target_folder` paths.
+An explicit `-c/--config` selects the spec instead; `-w/--workdir` still overrides its working directory.
+The command fails if no nearby spec exists or the current directory is outside its repositories.
+
+Use `bl edit <repo> --remove` (or `bl edit . --remove`) to delete only the saved editable status. It does not reset or
+otherwise change the checkout; the next `bl build` will manage the repo again.
+
 #### Params
-* `REPOSITORY_NAME` repo to make editable
+* `REPOSITORY_NAME` repo to make editable, or `.` for the current repo
+* `--remove` remove the repo's saved editable status
 * `options` same shared options as above
 
 ### Clean
@@ -134,6 +152,68 @@ Initializes a new project from the [docky-odoo-template-shared](https://github.c
 
 #### Params
 * `DESTINATION` destination directory (default: current directory)
+
+## Shared Odoo branches
+
+BL now shares ordinary Odoo branch checkouts across projects. Projects with the
+same source repository, branch, ordered merges, patch contents, modules, and locales point to the same detached
+Git worktree. Building either project fetches the branch and updates the source
+files seen by both projects. There are no background updates.
+
+The shared store defaults to `$XDG_DATA_HOME/bl/odoo` (usually
+`~/.local/share/bl/odoo`). Set `BL_ODOO_STORE` to use a different drive or directory.
+Projects retain their existing `src/` or `target_folder` path as a symlink.
+Different Odoo versions share Git objects; frozen revisions get separate pinned
+worktrees and are not advanced by another project's build.
+
+Use `bl build --local-odoo` to build an independent clone in the project's
+`odoo/src` (or configured `target_folder`). An existing shared source symlink is
+unlinked before cloning; the shared checkout and other projects are untouched.
+Local builds still apply the configured modules, locales, merges, and patches,
+and can run `shell_command_after`. An existing project-local Odoo clone is
+automatically treated as `--local-odoo`: later builds update it in place, including
+its configured modules, locales, merges, patches, and shell commands. BL never
+replaces an existing non-symlink Odoo target with a shared-store link. Move or
+remove the local checkout first to switch the project back to shared storage.
+Editable Odoo settings remain unsupported.
+
+`bl edit odoo` and editable Odoo settings are rejected. Published source files
+are read-only to discourage accidental changes. `bl clean --remove` unlinks the
+project source without deleting the shared worktree. Existing real directories,
+including dirty clones, are never replaced by a link. Existing linked worktrees
+must be relocated with `git worktree move` first so their Git registration is
+not disrupted.
+
+Odoo specs can include ordered merges from multiple remotes (including pull
+request refs) and `patch_globs`. Identical patch bytes share a worktree even when
+the files have different names or locations in each project. Globs are expanded
+in sorted filename order, while the order of entries in `patch_globs` is retained.
+Relative patch paths are interpreted against the project-side source path.
+
+Changing a project's patches or merge configuration attaches it to a different
+shared worktree. Building either consumer of an unchanged configuration updates
+both consumers. Failed merges or patches leave their published source unchanged.
+`bl freeze` records each resolved upstream commit separately, so frozen builds
+replay the same ordered merges and patches without following newer branch tips.
+Keep the patch files themselves versioned with the project.
+
+The legacy `shell_command_after: ["git am <patch_glob>"]` form is recognized as
+declarative patches; arbitrary shell commands are rejected for shared Odoo.
+Odoo specs using local `paths` remain project-local. To switch a shared project
+to local paths, remove its source link with `bl clean --remove` before rebuilding.
+
+Builds serialize shared updates and prepare the requested files before changing
+the live checkout. Updating a live checkout still changes files in place; restart
+running Odoo processes to load the new code consistently. Containers must also
+mount the shared store at the path referenced by the project symlink.
+Patch/merge preparation temporarily materializes a full checkout before applying
+the final module/language selection; repositories needing merges fetch full
+commit history with filtered blobs to establish merge ancestry.
+
+Use `bl clean-store --dry-run` to list unused shared worktrees, then
+`bl clean-store` to remove them with confirmation, or `bl clean-store --force`
+for unattended cleanup. This command needs no `spec.yaml`. Active project links
+are retained, and shared Git object storage is kept for future builds.
 
 ## Odoo is taking a really long time to clone
 
