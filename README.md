@@ -160,8 +160,9 @@ Use `bl build --local-odoo` to build an independent clone in the project's
 `odoo/src` (or configured `target_folder`). An existing shared source symlink is
 unlinked before cloning; the shared checkout and other projects are untouched.
 Local builds still apply the configured modules, locales, merges, and patches,
-and can run `shell_command_after`. Once the target is a real directory, later
-builds keep updating that project-local checkout even without the flag. BL never
+and can run `shell_command_after`. An existing project-local Odoo clone is
+automatically treated as `--local-odoo`: later builds update it in place, including
+its configured modules, locales, merges, patches, and shell commands. BL never
 replaces an existing non-symlink Odoo target with a shared-store link. Move or
 remove the local checkout first to switch the project back to shared storage.
 Editable Odoo settings remain unsupported.

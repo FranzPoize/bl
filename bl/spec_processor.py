@@ -658,14 +658,17 @@ class RepoProcessor:
         if self.name == "odoo":
             if is_editable or self.repo_info.editable:
                 raise OdooStoreError("Odoo cannot be editable; remove its editable setting before building")
-            if not self.local_odoo and can_share_odoo(self.repo_info):
+            # A project-local clone implicitly opts into --local-odoo on rebuild.
+            # Shared worktrees have a .git file and must keep the shared path.
+            local_odoo = self.local_odoo or (not module_path.is_symlink() and (module_path / ".git").is_dir())
+            if not local_odoo and can_share_odoo(self.repo_info):
                 self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
                 if await build_shared_odoo(self.repo_info, module_path, self.workdir):
                     self.progress.remove_task(self.task_id)
                     return 0, []
                 self.progress.update(self.task_id, status="Updating existing project-local Odoo checkout...")
             if managed_odoo_root(module_path):
-                if self.local_odoo and module_path.is_symlink():
+                if local_odoo and module_path.is_symlink():
                     # Unlink only this consumer; never reset or patch shared files.
                     module_path.unlink()
                 else:
@@ -673,7 +676,7 @@ class RepoProcessor:
                         "Odoo requires a project-local checkout. "
                         "Remove the shared project link with bl clean --remove before rebuilding this specification."
                     )
-            elif self.local_odoo and module_path.is_symlink():
+            elif local_odoo and module_path.is_symlink():
                 raise OdooStoreError("Local Odoo requires a directory; the source is an unmanaged symlink")
 
         # First thing we need to do is setup the repos
