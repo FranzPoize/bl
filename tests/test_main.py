@@ -350,3 +350,54 @@ def test_edit_dot_finds_spec_through_shell_symlink_path(monkeypatch, tmp_path):
     bl_main.run()
 
     assert calls == [("test-repo", project / "spec.yaml", None)]
+
+
+def test_run_dispatches_remove_editable_command(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_remove_editable(repository_name, config, workdir):
+        calls.append((repository_name, config, workdir))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "bl",
+            "edit",
+            "test-repo",
+            "--remove",
+            "-N",
+            "-c",
+            str(tmp_path / "spec.yaml"),
+            "-w",
+            str(tmp_path),
+        ],
+    )
+    monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
+    monkeypatch.setattr(bl_main, "load_spec_file", lambda *args: SimpleNamespace(repos={}, workdir=tmp_path))
+    monkeypatch.setattr(bl_main, "remove_editable", fake_remove_editable)
+
+    bl_main.run()
+
+    assert calls == [(Path("test-repo"), tmp_path / "spec.yaml", tmp_path)]
+
+
+def test_edit_dot_removes_containing_repo_saved_status(monkeypatch, tmp_path: Path):
+    from bl import config as bl_config
+
+    project = tmp_path / "project" / "odoo"
+    directory = project / "external-src" / "test-repo" / "module"
+    directory.mkdir(parents=True)
+    (project / "spec.yaml").write_text("test-repo: {}\nother-repo: {}\n")
+    monkeypatch.setattr(bl_config, "xdg_config_home", lambda: tmp_path / "xdg")
+    config = bl_config.load_config("project")
+    config["editable"] = {"test-repo": "True", "other-repo": "True"}
+    bl_config.write_config("project", config)
+
+    monkeypatch.chdir(directory)
+    monkeypatch.setattr(sys, "argv", ["bl", "edit", ".", "--remove", "-N"])
+    monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
+
+    bl_main.run()
+
+    assert bl_config.load_config("project")["editable"] == {"other-repo": "True"}

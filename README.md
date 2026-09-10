@@ -98,8 +98,8 @@ Shows diff for all dirty repos in the project.
 ### Edit
 
 ```bash
-bl edit REPOSITORY_NAME [options]
-bl edit . [options]
+bl edit REPOSITORY_NAME [--remove] [options]
+bl edit . [--remove] [options]
 ```
 
 #### What does it do
@@ -113,8 +113,12 @@ then matches your location against the repositories in that spec, including cust
 An explicit `-c/--config` selects the spec instead; `-w/--workdir` still overrides its working directory.
 The command fails if no nearby spec exists or the current directory is outside its repositories.
 
+Use `bl edit <repo> --remove` (or `bl edit . --remove`) to delete only the saved editable status. It does not reset or
+otherwise change the checkout; the next `bl build` will manage the repo again.
+
 #### Params
 * `REPOSITORY_NAME` repo to make editable, or `.` for the current repo
+* `--remove` remove the repo's saved editable status
 * `options` same shared options as above
 
 ### Clean

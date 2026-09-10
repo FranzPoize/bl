@@ -36,6 +36,33 @@ def current_repository(directory: Path, project_spec: ProjectSpec) -> str:
     return names[0]
 
 
+def remove_editable(repository_name: str, spec: Path, workdir: Path) -> bool:
+    """Remove a repository's persisted editable status.
+
+    The checkout itself is intentionally left untouched. A subsequent build
+    will see the repository as managed again and restore the managed state.
+    """
+    project_spec = load_spec_file(spec, None, workdir, [])
+    project_name = project_spec.workdir.absolute().parent.stem
+    project_config_file_path = get_config_file(project_name)
+    project_config_file = load_config(project_name)
+    repository_name = str(repository_name)
+
+    if "editable" not in project_config_file or repository_name not in project_config_file["editable"]:
+        console.print(f"[yellow]Repo [bold]{repository_name}[/] is not marked editable[/]")
+        return False
+
+    del project_config_file["editable"][repository_name]
+    if not project_config_file["editable"]:
+        project_config_file.remove_section("editable")
+
+    write_config(project_name, project_config_file)
+    console.print(
+        f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]"
+    )
+    return True
+
+
 async def make_editable(repository_name: str, spec: Path, workdir: Path):
     if str(repository_name) == "odoo":
         raise ValueError("Odoo cannot be edited; it is managed by BL")
