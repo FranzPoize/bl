@@ -65,29 +65,42 @@ async def test_local_build_runs_shell_commands(odoo_store: OdooEnvironment) -> N
 
 
 @pytest.mark.asyncio
-async def test_local_build_honors_frozen_revision(odoo_store: OdooEnvironment) -> None:
+@pytest.mark.parametrize("existing_clone", [False, True])
+async def test_local_build_honors_frozen_revision(odoo_store: OdooEnvironment, existing_clone: bool) -> None:
     project = odoo_store.project("a")
+    if existing_clone:
+        await process_project(project.specification(), concurrency=1, local_odoo=True)
     pinned = odoo_store.git(odoo_store.remote, "rev-parse", "HEAD")
     project.pin(pinned)
     odoo_store.advance()
 
-    await process_project(project.specification(), concurrency=1, local_odoo=True)
+    await process_project(project.specification(), concurrency=1, local_odoo=not existing_clone)
 
     assert odoo_store.git(project.source, "rev-parse", "HEAD") == pinned
     assert not odoo_store.store_root.exists()
 
 
 @pytest.mark.asyncio
-async def test_build_without_flag_migrates_local_clone_back_to_shared(odoo_store: OdooEnvironment) -> None:
+@pytest.mark.parametrize("target", ["src", "custom-source"])
+async def test_build_without_flag_keeps_existing_local_clone(odoo_store: OdooEnvironment, target: str) -> None:
     project = odoo_store.project("a")
+    project.configure(target_folder=target, modules=["account"], locales=["fr"])
     await process_project(project.specification(), concurrency=1, local_odoo=True)
+    common_dir = odoo_store.common_dir(project)
+    upstream = odoo_store.advance()
+    project.configure(shell_command_after=["echo local > odoo/generated.txt"])
 
     await project.build()
 
-    assert project.source.is_symlink()
-    backups = list(project.workdir.glob("src.bl-backup-*"))
-    assert len(backups) == 1
-    assert (backups[0] / ".git").is_dir()
+    assert not project.source.is_symlink()
+    assert odoo_store.common_dir(project) == common_dir
+    assert odoo_store.git(project.source, "rev-parse", "HEAD") == upstream
+    assert (project.source / "odoo/generated.txt").read_text() == "local\n"
+    assert (project.source / "addons/account/i18n/fr.po").is_file()
+    assert not (project.source / "addons/account/i18n/es.po").exists()
+    assert not (project.source / "addons/sale").exists()
+    assert not list(project.workdir.glob(f"{target}.bl-backup-*"))
+    assert not odoo_store.store_root.exists()
 
 
 @pytest.mark.asyncio

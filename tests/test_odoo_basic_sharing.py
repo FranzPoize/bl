@@ -95,7 +95,7 @@ async def test_clean_then_build_patched_spec_uses_distinct_shared_checkout(odoo_
 
 
 @pytest.mark.asyncio
-async def test_migration_keeps_local_history_and_ignored_files(odoo_store: OdooEnvironment) -> None:
+async def test_existing_checkout_keeps_local_git_data(odoo_store: OdooEnvironment) -> None:
     project = odoo_store.project("a")
     odoo_store.git(project.workdir, "clone", odoo_store.remote.as_uri(), str(project.source))
     (project.source / "odoo/local.txt").write_text("local commit\n")
@@ -107,12 +107,12 @@ async def test_migration_keeps_local_history_and_ignored_files(odoo_store: OdooE
 
     await project.build()
 
-    backups = list(project.workdir.glob("src.bl-backup-*"))
-    assert len(backups) == 1
-    assert odoo_store.git(backups[0], "rev-parse", "HEAD") == local_sha
-    assert (backups[0] / "ignored.txt").read_text() == "keep this too\n"
-    assert (backups[0] / "odoo/local.txt").read_text() == "local commit\n"
-    assert not (project.source / "odoo/local.txt").exists()
+    assert not project.source.is_symlink()
+    assert (project.source / ".git").is_dir()
+    assert odoo_store.git(project.source, "cat-file", "-e", f"{local_sha}^{{commit}}") == ""
+    assert (project.source / "ignored.txt").read_text() == "keep this too\n"
+    assert not list(project.workdir.glob("src.bl-backup-*"))
+    assert not odoo_store.store_root.exists()
 
 
 @pytest.mark.asyncio

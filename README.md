@@ -166,17 +166,19 @@ Use `bl build --local-odoo` to build an independent clone in the project's
 `odoo/src` (or configured `target_folder`). An existing shared source symlink is
 unlinked before cloning; the shared checkout and other projects are untouched.
 Local builds still apply the configured modules, locales, merges, and patches,
-and can run `shell_command_after`. Pass the flag on each build to keep Odoo local;
-a build without it uses the shared store again, retaining the local clone as a
-backup if it is clean. Editable Odoo settings remain unsupported.
+and can run `shell_command_after`. An existing project-local Odoo clone is
+automatically treated as `--local-odoo`: later builds update it in place, including
+its configured modules, locales, merges, patches, and shell commands. BL never
+replaces an existing non-symlink Odoo target with a shared-store link. Move or
+remove the local checkout first to switch the project back to shared storage.
+Editable Odoo settings remain unsupported.
 
 `bl edit odoo` and editable Odoo settings are rejected. Published source files
 are read-only to discourage accidental changes. `bl clean --remove` unlinks the
-project source without deleting the shared worktree. Existing clean clones are
-retained beside the link as `src.bl-backup-<id>` (or the corresponding custom
-target name); dirty clones are left untouched and the build fails.
-Existing linked worktrees must be relocated with `git worktree move` first,
-so migration does not break their Git registration.
+project source without deleting the shared worktree. Existing real directories,
+including dirty clones, are never replaced by a link. Existing linked worktrees
+must be relocated with `git worktree move` first so their Git registration is
+not disrupted.
 
 Odoo specs can include ordered merges from multiple remotes (including pull
 request refs) and `patch_globs`. Identical patch bytes share a worktree even when
