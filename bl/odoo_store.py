@@ -5,7 +5,6 @@ import fcntl
 import glob
 import hashlib
 import json
-import logging
 import os
 import shlex
 import tempfile
@@ -19,9 +18,6 @@ from bl.config import get_odoo_store_root
 from bl.odoo_types import OdooCheckoutSelection, OdooProjectBinding, OdooSourceRef, OdooWorktreeRecipe, content_id
 from bl.types import OriginType, RepoInfo
 from bl.utils import run_git
-
-logger = logging.getLogger(__name__)
-
 
 class OdooStoreError(RuntimeError):
     pass
@@ -224,19 +220,20 @@ async def _remove_worktree(repository: Path, path: Path) -> None:
     await _git("worktree", "prune", cwd=repository, bare=True)
 
 
-async def _attach(target: Path, source: Path, root: Path, recipe: OdooWorktreeRecipe) -> None:
+def _target_blocks_shared_attachment(target: Path) -> bool:
+    if not target.exists() or target.is_symlink():
+        return False
+    if (target / ".git").is_file():
+        raise OdooStoreError(
+            "Odoo source is already a linked worktree; relocate it with git worktree move before rebuilding"
+        )
+    return True
+
+
+async def _attach(target: Path, source: Path, root: Path, recipe: OdooWorktreeRecipe) -> bool:
     target.parent.mkdir(parents=True, exist_ok=True)
-    backup = None
-    if target.exists() and not target.is_symlink():
-        if any(target.iterdir()):
-            await _assert_clean(target)
-            # Retain a real clone, including local history and ignored files.
-            # Migration must not discard commits merely because status is clean.
-            backup = target.with_name(f"{target.name}.bl-backup-{uuid4().hex[:8]}")
-            target.rename(backup)
-            logger.warning("Original Odoo checkout retained at %s", backup)
-        else:
-            target.rmdir()
+    if _target_blocks_shared_attachment(target):
+        return False
     temporary = target.with_name(f".{target.name}.{uuid4().hex}")
     binding = OdooProjectBinding(str(target), recipe.repository_id, recipe.worktree_id)
     try:
@@ -245,20 +242,20 @@ async def _attach(target: Path, source: Path, root: Path, recipe: OdooWorktreeRe
         # consumer. The repository lock is held throughout this operation.
         _write_json(root / "bindings" / f"{binding.binding_id}.json", asdict(binding))
         temporary.replace(target)
-    except BaseException:
-        if backup is not None and not target.exists():
-            backup.rename(target)
-        raise
+        return True
     finally:
         temporary.unlink(missing_ok=True)
 
 
-async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None:
-    root = get_odoo_store_root()
+async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> bool:
+    """Build and attach shared Odoo, or return False for an existing real target."""
     # Resolve parents, not the final project-side symlink.
     target = target.parent.resolve() / target.name
     if target.name == ".." or workdir.resolve().is_relative_to(target):
         raise OdooStoreError("Odoo target_folder must not contain the project directory itself")
+    if _target_blocks_shared_attachment(target):
+        return False
+    root = get_odoo_store_root()
     inputs = tuple(
         OdooSourceRef(_source_url(spec.remotes[ref.remote], workdir), ref.refspec.strip(), ref.type.value)
         for ref in spec.refspec_info
@@ -279,12 +276,8 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
     source = root / "worktrees" / recipe.repository_id / recipe.worktree_id
     record_path = root / "metadata" / f"{recipe.worktree_id}.json"
     async with store_lock(root, f"project-{content_id(str(target))}"):
-        if target.exists() and not target.is_symlink() and any(target.iterdir()):
-            await _assert_clean(target)
-            if (target / ".git").is_file():
-                raise OdooStoreError(
-                    "Odoo source is already a linked worktree; relocate it with git worktree move before rebuilding"
-                )
+        if _target_blocks_shared_attachment(target):
+            return False
         async with store_lock(root, recipe.repository_id):
             repository.mkdir(parents=True, exist_ok=True)
             if not (repository / "HEAD").exists():
@@ -376,7 +369,7 @@ async def build_shared_odoo(spec: RepoInfo, target: Path, workdir: Path) -> None
                     "resolved_refs": resolved,
                 },
             )
-            await _attach(target, source, root, recipe)
+            return await _attach(target, source, root, recipe)
 
 
 async def prune_unused_worktrees(root: Path, *, dry_run: bool = True) -> list[Path]:

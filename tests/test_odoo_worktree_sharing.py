@@ -237,19 +237,33 @@ async def test_published_source_files_are_not_writable(odoo_store: OdooEnvironme
 
 
 @pytest.mark.asyncio
-async def test_existing_clean_checkout_migrates_to_shared_store(odoo_store: OdooEnvironment) -> None:
+async def test_existing_clean_checkout_stays_project_local(odoo_store: OdooEnvironment) -> None:
     project = odoo_store.project("a")
     odoo_store.git(project.workdir, "clone", "--branch", "18.0", odoo_store.remote.as_uri(), str(project.source))
+    upstream = odoo_store.advance()
 
     await project.build()
 
-    assert project.source.is_symlink()
-    assert project.source.resolve().is_relative_to(odoo_store.store_root)
-    assert (project.source / "odoo/message.txt").read_text() == "original\n"
+    assert not project.source.is_symlink()
+    assert odoo_store.common_dir(project) == project.source / ".git"
+    assert odoo_store.git(project.source, "rev-parse", "HEAD") == upstream
+    assert not odoo_store.store_root.exists()
 
 
 @pytest.mark.asyncio
-async def test_dirty_existing_checkout_is_preserved_during_migration(odoo_store: OdooEnvironment) -> None:
+async def test_existing_empty_source_directory_is_not_replaced(odoo_store: OdooEnvironment) -> None:
+    project = odoo_store.project("a")
+    project.source.mkdir()
+
+    await project.build()
+
+    assert not project.source.is_symlink()
+    assert (project.source / ".git").is_dir()
+    assert not odoo_store.store_root.exists()
+
+
+@pytest.mark.asyncio
+async def test_dirty_existing_checkout_is_preserved(odoo_store: OdooEnvironment) -> None:
     project = odoo_store.project("a")
     odoo_store.git(project.workdir, "clone", "--branch", "18.0", odoo_store.remote.as_uri(), str(project.source))
     (project.source / "odoo/message.txt").write_text("local work\n")
@@ -259,3 +273,4 @@ async def test_dirty_existing_checkout_is_preserved_during_migration(odoo_store:
 
     assert not project.source.is_symlink()
     assert (project.source / "odoo/message.txt").read_text() == "local work\n"
+    assert not odoo_store.store_root.exists()

@@ -2,7 +2,8 @@
 
 Branch, patch, and merge sharing are implemented. All acceptance tests are
 expected to pass, with no skipped or expected-failure cases.
-`test_odoo_basic_sharing.py` covers migration and changes to project specs.
+`test_odoo_basic_sharing.py` covers existing-checkout preservation and changes
+to project specs.
 
 The source contract is a moving shared branch: rebuilding either consumer
 updates both consumers when their branch, merge sequence, and patches match.
@@ -13,7 +14,7 @@ The suites cover:
 
 - `test_odoo_worktree_sharing.py`: shared branch updates, versions, repository
   identity, aliases, target paths, sparse selections, frozen revisions, failure
-  recovery, read-only files, and migration of existing checkouts.
+  recovery, read-only files, and preservation of existing checkouts.
 - `test_odoo_worktree_patches.py`: ordered project-relative patches, reuse by
   content, shared updates, changed patches, rebuilds, and conflicts.
 - `test_odoo_worktree_merges.py`: ordered merge recipes and shared updates to

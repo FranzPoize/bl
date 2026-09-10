@@ -660,9 +660,10 @@ class RepoProcessor:
                 raise OdooStoreError("Odoo cannot be editable; remove its editable setting before building")
             if not self.local_odoo and can_share_odoo(self.repo_info):
                 self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
-                await build_shared_odoo(self.repo_info, module_path, self.workdir)
-                self.progress.remove_task(self.task_id)
-                return 0, []
+                if await build_shared_odoo(self.repo_info, module_path, self.workdir):
+                    self.progress.remove_task(self.task_id)
+                    return 0, []
+                self.progress.update(self.task_id, status="Updating existing project-local Odoo checkout...")
             if managed_odoo_root(module_path):
                 if self.local_odoo and module_path.is_symlink():
                     # Unlink only this consumer; never reset or patch shared files.
