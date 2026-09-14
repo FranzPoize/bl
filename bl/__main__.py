@@ -142,10 +142,18 @@ def run():
 
     sub = parser.add_subparsers(help="subcommand help", dest="command")
     build_parser = sub.add_parser("build", parents=[parent_parser], help="build help")
-    build_parser.add_argument(
+    odoo_mode = build_parser.add_mutually_exclusive_group()
+    odoo_mode.add_argument(
         "--local-odoo",
         action="store_true",
-        help="Clone Odoo in the project's src directory instead of using the shared store.",
+        default=True,
+        help="Clone Odoo in the project's src directory (default).",
+    )
+    odoo_mode.add_argument(
+        "--shared-odoo",
+        dest="local_odoo",
+        action="store_false",
+        help="Use the shared Odoo store; existing project-local clones are updated in place.",
     )
     build_parser.add_argument(
         "-d",

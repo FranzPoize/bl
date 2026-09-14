@@ -80,17 +80,15 @@ def test_run_dispatches_edit_command(monkeypatch, tmp_path: Path):
     assert calls == [(Path("test-repo"), tmp_path / "spec.yaml", tmp_path)]
 
 
-@pytest.mark.parametrize("local_odoo", [False, True])
-def test_run_dispatches_build_with_local_odoo(monkeypatch, tmp_path: Path, local_odoo: bool):
+@pytest.mark.parametrize("flags,local_odoo", [([], True), (["--local-odoo"], True), (["--shared-odoo"], False)])
+def test_run_dispatches_build_with_local_odoo(monkeypatch, tmp_path: Path, flags: list[str], local_odoo: bool):
     calls = []
     spec = SimpleNamespace(repos={}, workdir=tmp_path)
 
     async def build(project_spec, **options):
         calls.append((project_spec, options))
 
-    argv = ["bl", "build", "-N"]
-    if local_odoo:
-        argv.append("--local-odoo")
+    argv = ["bl", "build", "-N", *flags]
     monkeypatch.setattr(sys, "argv", argv)
     monkeypatch.setattr(bl_main, "setup_logging", lambda _: None)
     monkeypatch.setattr(bl_main, "load_spec_file", lambda *args: spec)
@@ -99,6 +97,17 @@ def test_run_dispatches_build_with_local_odoo(monkeypatch, tmp_path: Path, local
     bl_main.run()
 
     assert calls == [(spec, {"concurrency": 28, "use_bindfs": False, "local_odoo": local_odoo})]
+
+
+@pytest.mark.parametrize("flags", [["--local-odoo", "--shared-odoo"], ["--shared-odoo", "--local-odoo"]])
+def test_build_rejects_conflicting_odoo_modes(monkeypatch, capsys, flags):
+    monkeypatch.setattr(sys, "argv", ["bl", "build", "-N", *flags])
+
+    with pytest.raises(SystemExit) as exc:
+        bl_main.run()
+
+    assert exc.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("option", ["--dry-run", "--force", "decline"])
@@ -216,7 +225,7 @@ def test_build_repository_selection_with_overrides_and_frozen(monkeypatch, tmp_p
         assert project.repos["odoo"].refspec_info[0].refspec == "abc123"
         assert concurrency == 2
         assert use_bindfs is True
-        assert local_odoo is False
+        assert local_odoo is True
 
     monkeypatch.setattr(
         sys,

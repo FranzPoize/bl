@@ -37,7 +37,7 @@ class OdooProject:
         (self.workdir / "frozen.yaml").write_text(yaml.safe_dump({"odoo": {alias: {branch: sha}}}))
 
     async def build(self) -> None:
-        await process_project(self.specification(), concurrency=1)
+        await process_project(self.specification(), concurrency=1, local_odoo=False)
 
 
 @dataclass

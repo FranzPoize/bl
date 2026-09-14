@@ -34,7 +34,7 @@ WORKER = textwrap.dedent("""\
     print("READY", flush=True)
     assert sys.stdin.readline().strip() == "BUILD"
     project = load_spec_file(workdir / "spec.yaml", None, workdir, [])
-    asyncio.run(process_project(project, concurrency=1))
+    asyncio.run(process_project(project, concurrency=1, local_odoo=False))
     """)
 
 

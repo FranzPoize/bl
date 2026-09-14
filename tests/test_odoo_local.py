@@ -1,4 +1,4 @@
-"""Project-local Odoo builds opt out of shared storage."""
+"""Odoo builds default to independent project-local clones."""
 
 import pytest
 
@@ -13,7 +13,7 @@ async def test_local_clone_and_rebuild(odoo_store: OdooEnvironment, target: str)
     project = odoo_store.project("a")
     project.configure(target_folder=target, modules=["account"], locales=["fr"])
 
-    await process_project(project.specification(), concurrency=1, local_odoo=True)
+    await process_project(project.specification(), concurrency=1)
 
     assert not project.source.is_symlink()
     assert (project.source / ".git").is_dir()
@@ -24,7 +24,7 @@ async def test_local_clone_and_rebuild(odoo_store: OdooEnvironment, target: str)
     assert not (project.source / "addons/sale").exists()
 
     upstream = odoo_store.advance()
-    await process_project(project.specification(), concurrency=1, local_odoo=True)
+    await process_project(project.specification(), concurrency=1)
 
     assert odoo_store.git(project.source, "rev-parse", "HEAD") == upstream
     assert not project.source.is_symlink()
@@ -42,7 +42,7 @@ async def test_switch_to_local_does_not_change_shared_consumer(odoo_store: OdooE
     head = odoo_store.git(published, "rev-parse", "HEAD")
     local.configure(patch_globs=["../patches/fix-0.patch"])
 
-    await process_project(local.specification(), concurrency=1, local_odoo=True)
+    await process_project(local.specification(), concurrency=1)
 
     assert not local.source.is_symlink()
     assert (local.source / ".git").is_dir()
@@ -82,7 +82,8 @@ async def test_local_build_honors_frozen_revision(odoo_store: OdooEnvironment, e
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target", ["src", "custom-source"])
-async def test_build_without_flag_keeps_existing_local_clone(odoo_store: OdooEnvironment, target: str) -> None:
+@pytest.mark.parametrize("options", [{}, {"local_odoo": False}])
+async def test_build_keeps_existing_local_clone(odoo_store: OdooEnvironment, target: str, options: dict) -> None:
     project = odoo_store.project("a")
     project.configure(target_folder=target, modules=["account"], locales=["fr"])
     await process_project(project.specification(), concurrency=1, local_odoo=True)
@@ -90,7 +91,7 @@ async def test_build_without_flag_keeps_existing_local_clone(odoo_store: OdooEnv
     upstream = odoo_store.advance()
     project.configure(shell_command_after=["echo local > odoo/generated.txt"])
 
-    await project.build()
+    await process_project(project.specification(), concurrency=1, **options)
 
     assert not project.source.is_symlink()
     assert odoo_store.common_dir(project) == common_dir

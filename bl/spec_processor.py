@@ -243,7 +243,7 @@ class RepoProcessor:
         count_task: TaskID,
         concurrency: int,
         use_bindfs: bool = False,
-        local_odoo: bool = False,
+        local_odoo: bool = True,
     ):
         self.workdir = workdir
         self.name = name
@@ -658,8 +658,8 @@ class RepoProcessor:
         if self.name == "odoo":
             if is_editable or self.repo_info.editable:
                 raise OdooStoreError("Odoo cannot be editable; remove its editable setting before building")
-            # A project-local clone implicitly opts into --local-odoo on rebuild.
-            # Shared worktrees have a .git file and must keep the shared path.
+            # Preserve existing project-local clones even when shared mode is requested.
+            # Shared worktrees have a .git file, so they do not count as local clones.
             local_odoo = self.local_odoo or (not module_path.is_symlink() and (module_path / ".git").is_dir())
             if not local_odoo and can_share_odoo(self.repo_info):
                 self.progress.update(self.task_id, status="Updating shared Odoo worktree...")
@@ -853,7 +853,7 @@ class RepoProcessor:
 
 
 async def process_project(
-    project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False, local_odoo: bool = False
+    project_spec: ProjectSpec, concurrency: int, use_bindfs: bool = False, local_odoo: bool = True
 ) -> None:
     """Processes all modules in a ProjectSpec."""
     project_name = project_spec.workdir.absolute().parent.stem

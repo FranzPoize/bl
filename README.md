@@ -32,7 +32,7 @@ Git commands run without terminal prompts, so credentials for private repos must
 ### Build
 
 ```bash
-bl build [-d REPOSITORY_NAME] [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
+bl build [-d REPOSITORY_NAME] [-c PATH_TO_SPEC] [-z PATH_TO_FROZEN] [-o CONFIG_OVERRIDE] [-j CONCURRENCY] [-b/--use-bindfs] [--local-odoo | --shared-odoo] [-w WORKDIR] [-N/--no-check-version] [--log-level LEVEL]
 ```
 
 #### What does it do
@@ -51,7 +51,8 @@ Without `-d`, all repositories are processed as usual.
 * `CONFIG_OVERRIDE` path to an override config to extend the project specification
 * `CONCURRENCY` number of module clone simultaneously (default: `28`)
 * `--use-bindfs` use bindfs instead of creating symlinks (requires `user_allow_other` in `/etc/fuse.conf`)
-* `--local-odoo` clone Odoo into the project's `odoo/src` (or configured `target_folder`) instead of using the shared store
+* `--local-odoo` clone Odoo into the project's `odoo/src` (or configured `target_folder`); this is the default
+* `--shared-odoo` opt into the shared Odoo store; existing local clones are still updated in place. Cannot be combined with `--local-odoo`
 * `WORKDIR` working directory; if omitted, the directory containing `spec.yaml`
 * `--no-check-version` skip the PyPI version check
 * `LEVEL` log level (see `--log-level` above)
@@ -155,7 +156,7 @@ Initializes a new project from the [docky-odoo-template-shared](https://github.c
 
 ## Shared Odoo branches
 
-BL now shares ordinary Odoo branch checkouts across projects. Projects with the
+Use `bl build --shared-odoo` to share ordinary Odoo branch checkouts across projects. Projects with the
 same source repository, branch, ordered merges, patch contents, modules, and locales point to the same detached
 Git worktree. Building either project fetches the branch and updates the source
 files seen by both projects. There are no background updates.
@@ -166,15 +167,17 @@ Projects retain their existing `src/` or `target_folder` path as a symlink.
 Different Odoo versions share Git objects; frozen revisions get separate pinned
 worktrees and are not advanced by another project's build.
 
-Use `bl build --local-odoo` to build an independent clone in the project's
+By default, `bl build` builds an independent clone in the project's
 `odoo/src` (or configured `target_folder`). An existing shared source symlink is
 unlinked before cloning; the shared checkout and other projects are untouched.
+Pass `--shared-odoo` on each build to keep using shared storage. The explicit
+`--local-odoo` flag remains available and selects the default behavior.
 Local builds still apply the configured modules, locales, merges, and patches,
 and can run `shell_command_after`. An existing project-local Odoo clone is
-automatically treated as `--local-odoo`: later builds update it in place, including
+updated in place even with `--shared-odoo`, including
 its configured modules, locales, merges, patches, and shell commands. BL never
 replaces an existing non-symlink Odoo target with a shared-store link. Move or
-remove the local checkout first to switch the project back to shared storage.
+remove the local checkout first, then build with `--shared-odoo` to switch the project back to shared storage.
 Editable Odoo settings remain unsupported.
 
 `bl edit odoo` and editable Odoo settings are rejected. Published source files
