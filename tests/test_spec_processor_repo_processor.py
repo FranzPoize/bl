@@ -57,8 +57,6 @@ def test_filter_non_link_module(tmp_path: Path) -> None:
 
 
 def test_add_locking_pre_commit_writes_blocking_hook(tmp_path: Path) -> None:
-    repo_info = _make_repo_info(refspecs=[_make_ref("origin", "main")])
-    rp = _make_repo_processor(tmp_path, repo_info)
     module_path = tmp_path / "repo"
     hooks_dir = module_path / ".git" / "hooks"
     hooks_dir.mkdir(parents=True)

@@ -63,12 +63,7 @@ listener = logging.handlers.QueueListener(que, RichConsoleHandler())
 
 
 def check_last_version() -> bool:
-    ret = subprocess.run(["which", "pip"], capture_output=True)
-    ok = ret.returncode == 0
-    pip_target = ret.stdout.decode().strip()
-
     pip_call = subprocess.run(["pip", "index", "versions", "--json", "bl-odoo"], capture_output=True)
-    pip_index_ok = pip_call.returncode == 0
     pip_return_value = pip_call.stdout.decode().strip()
 
     json_pip_index = json.loads(pip_return_value)

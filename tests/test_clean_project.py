@@ -7,8 +7,8 @@ import pytest
 
 from bl.clean_project import (
     _clean_directory,
-    gather_dirty_repo_info,
     clean_project,
+    gather_dirty_repo_info,
     show_diffs,
 )
 from bl.types import ProjectSpec, RepoInfo
@@ -306,7 +306,7 @@ async def test_handle_dirty_repos_dirty_repo(monkeypatch, tmp_path: Path) -> Non
 @pytest.mark.asyncio
 async def test_handle_dirty_repos_reset_success(monkeypatch, tmp_path: Path) -> None:
     """Test that user answering 'y' triggers repo reset and returns success."""
-    from bl.clean_project import handle_dirty_repos, reset_repo
+    from bl.clean_project import handle_dirty_repos
     from bl.spec_processor import console
 
     workdir = tmp_path
@@ -377,7 +377,6 @@ async def test_handle_dirty_repos_reset_failure(monkeypatch, tmp_path: Path) -> 
 async def test_handle_dirty_repos_dry_run(monkeypatch, tmp_path: Path) -> None:
     from bl.clean_project import handle_dirty_repos
     from bl.spec_processor import console
-    from unittest.mock import AsyncMock
 
     workdir = tmp_path
     repo_info = _make_repo_info()
@@ -406,7 +405,6 @@ async def test_handle_dirty_repos_dry_run(monkeypatch, tmp_path: Path) -> None:
 async def test_clean_project_no_flags_uses_dirty_check(monkeypatch, tmp_path: Path) -> None:
     from bl.clean_project import clean_project
     from bl.spec_processor import console
-    from unittest.mock import AsyncMock
 
     workdir = tmp_path
     src = workdir / "src"
@@ -544,7 +542,7 @@ async def test_handle_remove_dry_run_shows_existing(tmp_path: Path, monkeypatch)
 @pytest.mark.asyncio
 async def test_handle_remove_failure(monkeypatch, tmp_path: Path) -> None:
     """Test that deletion failure returns 1."""
-    from bl.clean_project import handle_remove, _clean_directory
+    from bl.clean_project import handle_remove
     from bl.spec_processor import console
 
     workdir = tmp_path
@@ -565,7 +563,7 @@ async def test_handle_remove_failure(monkeypatch, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_clean_project_handles_dirty_repos_failure(monkeypatch, tmp_path: Path) -> None:
     """Test that handle_dirty_repos failure propagates to clean_project return."""
-    from bl.clean_project import clean_project, handle_dirty_repos
+    from bl.clean_project import clean_project
 
     workdir = tmp_path
     project = ProjectSpec(repos={}, workdir=workdir)
@@ -583,7 +581,7 @@ async def test_clean_project_handles_dirty_repos_failure(monkeypatch, tmp_path: 
 @pytest.mark.asyncio
 async def test_clean_project_handles_unlink_failure(monkeypatch, tmp_path: Path) -> None:
     """Test that handle_unlink failure propagates to clean_project return."""
-    from bl.clean_project import clean_project, handle_unlink
+    from bl.clean_project import clean_project
 
     workdir = tmp_path
     project = ProjectSpec(repos={}, workdir=workdir)
@@ -601,43 +599,7 @@ async def test_clean_project_handles_unlink_failure(monkeypatch, tmp_path: Path)
 @pytest.mark.asyncio
 async def test_clean_project_handles_remove_failure(monkeypatch, tmp_path: Path) -> None:
     """Test that handle_remove failure propagates to clean_project return."""
-    from bl.clean_project import clean_project, handle_remove
-
-    workdir = tmp_path
-    project = ProjectSpec(repos={}, workdir=workdir)
-
-    # Mock handle_remove to return 1 (failure) - must be async
-    async def mock_handle_remove(workdir, force, dry_run):
-        return 1
-
-    monkeypatch.setattr("bl.clean_project.handle_remove", mock_handle_remove)
-
-    ret = await clean_project(project, remove=True)
-    assert ret == 1
-
-
-@pytest.mark.asyncio
-async def test_clean_project_handles_unlink_failure(monkeypatch, tmp_path: Path) -> None:
-    """Test that handle_unlink failure propagates to clean_project return."""
-    from bl.clean_project import clean_project, handle_unlink
-
-    workdir = tmp_path
-    project = ProjectSpec(repos={}, workdir=workdir)
-
-    # Mock handle_unlink to return 1 (failure) - must be async
-    async def mock_handle_unlink(workdir, dry_run):
-        return 1
-
-    monkeypatch.setattr("bl.clean_project.handle_unlink", mock_handle_unlink)
-
-    ret = await clean_project(project, unlink=True)
-    assert ret == 1
-
-
-@pytest.mark.asyncio
-async def test_clean_project_handles_remove_failure(monkeypatch, tmp_path: Path) -> None:
-    """Test that handle_remove failure propagates to clean_project return."""
-    from bl.clean_project import clean_project, handle_remove
+    from bl.clean_project import clean_project
 
     workdir = tmp_path
     project = ProjectSpec(repos={}, workdir=workdir)

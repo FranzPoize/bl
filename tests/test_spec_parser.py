@@ -216,7 +216,9 @@ class TestLoadSpecFileWithOverride:
         assert "new-repo" in project.repos
         assert project.repos["new-repo"].modules == ["new_mod"]
 
-    def test_load_spec_file_falls_back_to_odoo_subdirectory_for_relative_config(self, monkeypatch, tmp_path: Path) -> None:
+    def test_load_spec_file_falls_back_to_odoo_subdirectory_for_relative_config(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
         config_dir = tmp_path / "project"
         odoo_dir = config_dir / "odoo"
         odoo_dir.mkdir(parents=True)

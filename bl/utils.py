@@ -26,12 +26,14 @@ def add_locking_pre_commit(repo_name: str, module_path: Path):
                     (
                         ": '\nbl-precommit\n'\n"
                         + "echo "
-                        + '"\033[38;5;197m####################################################################################'
+                        + '"\033[38;5;197m'
+                        + "#" * 84
                         + "#" * len(repo_name)
                         + "\n"
                         + f'\033[0mCommits are disabled, run \\"bl edit {repo_name}\\"'
                         + " in your project base directory to allow edition\n"
-                        + "\033[38;5;197m####################################################################################"
+                        + "\033[38;5;197m"
+                        + "#" * 84
                         + "#" * len(repo_name)
                         + '\033[0m\n"\n'
                     ),

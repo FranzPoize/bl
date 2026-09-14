@@ -24,8 +24,6 @@ def test_check_last_version_queries_pip_and_warns_when_older(monkeypatch):
 
     def fake_run(args, capture_output):
         calls.append(args)
-        if args == ["which", "pip"]:
-            return subprocess.CompletedProcess(args, 0, stdout=b"/usr/bin/pip\n")
         assert args == ["pip", "index", "versions", "--json", "bl-odoo"]
         return subprocess.CompletedProcess(args, 0, stdout=json.dumps({"versions": ["9.9.9"]}).encode())
 
@@ -35,7 +33,7 @@ def test_check_last_version_queries_pip_and_warns_when_older(monkeypatch):
 
     bl_main.check_last_version()
 
-    assert calls == [["which", "pip"], ["pip", "index", "versions", "--json", "bl-odoo"]]
+    assert calls == [["pip", "index", "versions", "--json", "bl-odoo"]]
     assert printed
     assert "Yours is 0.0.1" in printed[0]
     assert "Last is 9.9.9" in printed[0]

@@ -57,9 +57,7 @@ def remove_editable(repository_name: str, spec: Path, workdir: Path) -> bool:
         project_config_file.remove_section("editable")
 
     write_config(project_name, project_config_file)
-    console.print(
-        f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]"
-    )
+    console.print(f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]")
     return True
 
 

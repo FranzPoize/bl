@@ -81,7 +81,10 @@ class RepoInfo:
         self.editable = editable
 
     def __repr__(self) -> str:
-        return f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, origins={self.refspec_info}, paths={self.paths})"
+        return (
+            f"ModuleSpec(modules={self.modules}, remotes={self.remotes}, "
+            f"origins={self.refspec_info}, paths={self.paths})"
+        )
 
 
 class ProjectSpec:

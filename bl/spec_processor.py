@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import warnings
-from configparser import ConfigParser, SectionProxy
+from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
@@ -13,7 +13,6 @@ from rich.markup import escape
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Column, Table
 
-from bl import config
 from bl.config import get_from_config, load_config
 from bl.odoo_store import OdooStoreError, build_shared_odoo, can_share_odoo, managed_odoo_root
 from bl.types import CloneFlags, CloneInfo, OriginType, ProjectSpec, RefspecInfo, RepoInfo, SparseCheckoutFlags
@@ -201,8 +200,9 @@ async def print_fetch_output(name, fetch_data, module_path) -> str:
     base = fetch_data["base"]
     target = fetch_data["target"]
     fetch_output = (
-        f"\t[yellow1]{name}[/yellow1]: [yellow1]{ref}[/yellow1]: [deep_sky_blue3]Updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
-        + f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1][/deep_sky_blue3]\n"
+        f"\t[yellow1]{name}[/yellow1]: [yellow1]{ref}[/yellow1]: "
+        f"[deep_sky_blue3]Updated from [pale_turquoise1]{base[:9]}[/pale_turquoise1]"
+        f" to [pale_turquoise1]{target[:9]}[/pale_turquoise1][/deep_sky_blue3]\n"
     )
     # TODO(franz) if the difference is not fast forwardable it needs to be ... instead of ..
     log_ret, log_out, log_err = await run_git(
@@ -212,7 +212,10 @@ async def print_fetch_output(name, fetch_data, module_path) -> str:
 
     for log in log_lines:
         hash, author, message, date = tuple(log.split("|"))
-        fetch_output += f"\t\t[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]: {message} [grey35]({date})[/grey35]\n"
+        fetch_output += (
+            f"\t\t[navajo_white1]{hash}[/navajo_white1] [sky_blue1]{author}[/sky_blue1]: "
+            f"{message} [grey35]({date})[/grey35]\n"
+        )
 
     return fetch_output
 

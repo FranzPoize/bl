@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -379,7 +378,6 @@ async def test_merge_spec_into_tree_error(monkeypatch, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_check_and_apply_patch_no_files(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
     from bl.spec_processor import console
 
     rp = _make_repo_processor(tmp_path, _make_repo_info())
@@ -475,8 +473,6 @@ async def test_run_shell_commands_with_regular_command(monkeypatch, tmp_path: Pa
 
 @pytest.mark.asyncio
 async def test_run_shell_commands_failure(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
-
     rp = _make_repo_processor(tmp_path, _make_repo_info(shell_commands=["false"]))
     rp.task_id = 0
 
@@ -515,8 +511,6 @@ async def test_link_all_modules_unlink_error(monkeypatch, tmp_path: Path) -> Non
 
 @pytest.mark.asyncio
 async def test_run_shell_commands_git_am_deprecated(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
-
     rp = _make_repo_processor(tmp_path, _make_repo_info(shell_commands=["git am patches/*.patch"]))
     rp.task_id = 0
 
@@ -804,7 +798,6 @@ async def test_link_all_modules_oserror(monkeypatch, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_merge_spec_into_tree_success(monkeypatch, tmp_path: Path) -> None:
     from bl import spec_processor as sp
-    from bl.spec_processor import console
 
     refspecs = [_make_ref("origin", "feature")]
     repo_info = _make_repo_info(refspecs=refspecs)
@@ -854,7 +847,11 @@ async def test_fetch_multi_calls_print_fetch_output(monkeypatch, tmp_path: Path)
 
     async def fake_print_fetch_output(name, fetch_data, module_path):
         # Capture the return value (string) - return mock string instead of calling real function
-        result = f"[deep_sky_blue3]{name}: updated from [pale_turquoise1]{fetch_data['base'][:9]}[/pale_turquoise1] to [pale_turquoise1]{fetch_data['target'][:9]}[/pale_turquoise1] for {fetch_data['ref']}[/deep_sky_blue3]\n"
+        result = (
+            f"[deep_sky_blue3]{name}: updated from [pale_turquoise1]{fetch_data['base'][:9]}[/pale_turquoise1] "
+            f"to [pale_turquoise1]{fetch_data['target'][:9]}[/pale_turquoise1] "
+            f"for {fetch_data['ref']}[/deep_sky_blue3]\n"
+        )
         returned_outputs.append(result)
         return result
 
@@ -874,8 +871,6 @@ async def test_fetch_multi_calls_print_fetch_output(monkeypatch, tmp_path: Path)
 
 @pytest.mark.asyncio
 async def test_queue_repo_task_exception_handling(monkeypatch, tmp_path: Path) -> None:
-    from bl import spec_processor as sp
-
     rp = _make_repo_processor(tmp_path, _make_repo_info())
     rp.task_id = 0
 

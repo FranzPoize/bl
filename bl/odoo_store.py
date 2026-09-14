@@ -19,6 +19,7 @@ from bl.odoo_types import OdooCheckoutSelection, OdooProjectBinding, OdooSourceR
 from bl.types import OriginType, RepoInfo
 from bl.utils import run_git
 
+
 class OdooStoreError(RuntimeError):
     pass
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import pytest
 import yaml
 
 from bl.spec_parser import load_spec_file
