@@ -4,6 +4,7 @@ import atexit
 import json
 import logging
 import logging.handlers
+import os
 import queue
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
-from bl.editable import make_editable
+from bl.editable import current_repository, find_edit_spec, make_editable
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
@@ -144,7 +145,8 @@ def run():
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
-    edit_parser.add_argument("repository_name", type=Path)
+    edit_parser.set_defaults(config=None)
+    edit_parser.add_argument("repository_name", type=Path, help="Repository name, or '.' for the current repository")
     init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
     init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
@@ -181,6 +183,20 @@ def run():
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
         sys.exit(0)
 
+    edit_directory = None
+    if args.command == "edit" and args.repository_name == Path("."):
+        edit_directory = Path.cwd()
+        # Keep the project hierarchy when the shell entered a symlinked checkout.
+        shell_directory = Path(os.environ.get("PWD", ""))
+        if shell_directory.is_absolute() and shell_directory.resolve() == edit_directory:
+            edit_directory = shell_directory
+        if args.config is None:
+            try:
+                args.config = find_edit_spec(edit_directory)
+            except ValueError as exc:
+                parser.error(str(exc))
+    args.config = args.config or Path("spec.yaml")
+
     project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
     if project_spec is None:
         sys.exit(1)
@@ -193,6 +209,11 @@ def run():
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
+            if edit_directory is not None:
+                try:
+                    args.repository_name = current_repository(edit_directory, project_spec)
+                except ValueError as exc:
+                    parser.error(str(exc))
             asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
