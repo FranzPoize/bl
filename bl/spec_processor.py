@@ -871,8 +871,10 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
 
         # Collect all fetch outputs and print at the end, grouped by repo
         all_fetch_outputs = []
+        return_codes = []
         for result in results:
             return_code, name, fetch_outputs = result
+            return_codes.append(return_code)
             if fetch_outputs:
                 all_fetch_outputs.append((name, fetch_outputs))
 
@@ -881,3 +883,6 @@ async def process_project(project_spec: ProjectSpec, concurrency: int, use_bindf
             for repo_name, outputs in all_fetch_outputs:
                 console.print(f"[green1]✔ [/green1][orange1] {repo_name}[/orange1]")
                 console.print("".join(outputs))
+
+        if any([r != 0 for r in return_codes]):
+            raise Exception()
