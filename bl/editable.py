@@ -12,6 +12,10 @@ console = Console()
 
 def find_edit_spec(directory: Path) -> Path:
     """Find the nearest spec in this directory or its first seven parents."""
+    spec = directory / "odoo" / "spec.yaml"
+    if spec.is_file():
+        return spec
+
     for parent in (directory, *directory.parents[:7]):
         spec = parent / "spec.yaml"
         if spec.is_file():
