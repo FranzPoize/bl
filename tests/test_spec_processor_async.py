@@ -1079,50 +1079,71 @@ async def test_process_repo_shell_commands_error(monkeypatch, tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_shallow_pull_output(monkeypatch, tmp_path: Path) -> None:
-    """Test that shallow pull also prints output at end."""
+    """Collect a shallow fetch update through the full repository processing path."""
     from io import StringIO
+    from unittest.mock import AsyncMock
 
     from rich.console import Console
 
     from bl import spec_processor as sp
 
-    rp = _make_repo_processor(tmp_path, _make_repo_info())
-    rp.task_id = 0
+    remote_url = "https://example.com/repo.git"
+    repo_info = _make_repo_info(
+        remotes={"origin": remote_url},
+        refspecs=[_make_ref("origin", "main")],
+    )
+    rp = _make_repo_processor(tmp_path, repo_info)
 
     module_path = tmp_path / "repo"
-    module_path.mkdir()
+    (module_path / ".git").mkdir(parents=True)
 
     print_buffer = StringIO()
     test_console = Console(file=print_buffer, force_terminal=True)
+    fetch_calls = []
+    base = "a" * 40
+    target = "b" * 40
 
     async def fake_run_git(*args, cwd=None):
-        if args[0] == "fetch" and "--depth" in args:
-            return 0, "f abc123 def456 refs/heads/main\n", ""
-        if "log" in args:
-            return 0, "abc123|Author|Commit message|2 days ago\n", ""
+        if args[0] == "remote" and args[1] == "get-url":
+            return 0, remote_url + "\n", ""
+        if args[:2] == ("rev-parse", "--is-shallow-repository"):
+            return 0, "true\n", ""
+        if args[:2] == ("rev-parse", "--abbrev-ref"):
+            return 0, "main\n", ""
+        if args[:2] == ("rev-parse", "--verify"):
+            return 1, "", "unknown revision"
+        if args[0] == "fetch":
+            fetch_calls.append((args, cwd))
+            # Ordinary fetch reports updates on stderr; only porcelain uses stdout.
+            if "--porcelain" in args:
+                return 0, f"+ {base} {target} refs/remotes/origin/main\n", ""
+            return 0, "", "From example.com/repo\n + aaaaaaa...bbbbbbb main -> origin/main (forced update)\n"
+        if args[0] == "log":
+            assert args[-1] == f"{base}..{target}"
+            return 0, "bbbbbbb|(Author)|Commit message|2 days ago\n", ""
         return 0, "", ""
 
     monkeypatch.setattr(sp, "run_git", fake_run_git)
     monkeypatch.setattr(sp, "console", test_console)
+    monkeypatch.setattr(sp, "remove_locking_pre_commit", AsyncMock(return_value=(0, "", "")))
+    monkeypatch.setattr(sp, "add_locking_pre_commit", lambda *args: None)
 
-    # This test verifies the shallow path uses deferred printing
-    # The full flow requires process() to call the shallow fetch with depth=1
-    # We test that parse_fetch_output and print_fetch_output would be called
-    # by verifying the functions are available and the code pattern works
-    from bl.spec_processor import parse_fetch_output, print_fetch_output
+    ret, fetch_outputs = await rp.process_repo(module_path, [], [])
 
-    # Verify parse_fetch_output can handle shallow fetch output
-    test_output = "f abc123 def456 refs/heads/main\n"
-    parsed = parse_fetch_output(test_output)
-    assert len(parsed) == 1
-    assert parsed[0]["base"] == "abc123"
-    assert parsed[0]["target"] == "def456"
-    assert parsed[0]["ref"] == "main"
-
-    # Verify print_fetch_output returns a string
-    output = await print_fetch_output("test-repo", parsed[0], module_path)
-    assert isinstance(output, str)
-    assert "test-repo" in output
+    assert ret == 0
+    assert len(fetch_outputs) == 1
+    assert len(fetch_calls) == 1
+    args, cwd = fetch_calls[0]
+    assert "--porcelain" in args
+    assert args[args.index("--depth") + 1] == "1"
+    assert args[-2:] == ("origin", "main")
+    assert cwd == module_path
+    assert "test-repo" in fetch_outputs[0]
+    assert "origin/main" in fetch_outputs[0]
+    assert base[:9] in fetch_outputs[0]
+    assert target[:9] in fetch_outputs[0]
+    assert "Commit message" in fetch_outputs[0]
+    assert print_buffer.getvalue() == ""
 
 
 @pytest.mark.asyncio
