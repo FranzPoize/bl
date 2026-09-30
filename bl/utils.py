@@ -16,6 +16,21 @@ bl_env["GIT_TERMINAL_PROMPT"] = "0"
 logger = logging.getLogger(__name__)
 
 
+def logical_cwd() -> Path:
+    cwd = Path.cwd()
+    pwd = os.environ.get("PWD")
+
+    if pwd:
+        logical = Path(pwd)
+        try:
+            if logical.is_absolute() and logical.samefile(cwd):
+                return logical
+        except OSError:
+            pass
+
+    return cwd
+
+
 def add_locking_pre_commit(repo_name: str, module_path: Path):
     pre_commit_path = module_path / ".git" / "hooks" / "pre-commit"
     if module_path.exists():

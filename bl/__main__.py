@@ -20,6 +20,7 @@ from bl.editable import current_repository, find_edit_spec, make_editable, remov
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
+from bl.utils import logical_cwd
 
 err_console = Console(stderr=True)
 out_console = Console()
@@ -190,14 +191,10 @@ def run():
         sys.exit(0)
 
     try:
-        shell_directory = Path(os.environ.get("PWD", ""))
-        edit_directory = (
-            shell_directory
-            if shell_directory.is_absolute()
-            and shell_directory.resolve() == Path.cwd()
-            and args.repository_name == Path(".")
-            else Path.cwd()
-        )
+        # This is because Path.cwd() returns the resolve symbolic link path
+        # We need the unresolve symbolic link path to search for the spec.yaml
+        # upward in the hierarchy
+        edit_directory = logical_cwd()
         if args.config is None:
             args.config = find_edit_spec(edit_directory)
         args.config = args.config or Path("spec.yaml")
@@ -213,20 +210,16 @@ def run():
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
-            # if args.repository_name == Path("."):
-            #     edit_directory = Path.cwd()
-            #     # Keep the project hierarchy when the shell entered a symlinked checkout.
-            #     shell_directory = Path(os.environ.get("PWD", ""))
-            #     if shell_directory.is_absolute() and shell_directory.resolve() == edit_directory:
-            #         edit_directory = shell_directory
-            #     if args.config is None:
-            #         args.config = find_edit_spec(edit_directory)
-            if edit_directory is not None and args.repository_name == Path("."):
-                args.repository_name = current_repository(edit_directory, project_spec)
+            repository_name = (
+                current_repository(edit_directory, project_spec)
+                if args.repository_name == Path(".")
+                else args.repository_name
+            )
+
             if args.remove:
-                remove_editable(args.repository_name, args.config, args.workdir)
+                remove_editable(repository_name, args.config, args.workdir)
             else:
-                asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
+                asyncio.run(make_editable(repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
                 clean_project(
