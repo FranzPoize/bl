@@ -63,6 +63,7 @@ listener = logging.handlers.QueueListener(que, RichConsoleHandler())
 
 
 def check_last_version() -> bool:
+    # TODO(franz): pip may not be named pip
     ret = subprocess.run(["which", "pip"], capture_output=True)
     ok = ret.returncode == 0
     pip_target = ret.stdout.decode().strip()
@@ -188,25 +189,23 @@ def run():
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
         sys.exit(0)
 
-    edit_directory = None
-    if args.command == "edit" and args.repository_name == Path("."):
-        edit_directory = Path.cwd()
-        # Keep the project hierarchy when the shell entered a symlinked checkout.
-        shell_directory = Path(os.environ.get("PWD", ""))
-        if shell_directory.is_absolute() and shell_directory.resolve() == edit_directory:
-            edit_directory = shell_directory
-        if args.config is None:
-            try:
-                args.config = find_edit_spec(edit_directory)
-            except ValueError as exc:
-                parser.error(str(exc))
-    args.config = args.config or Path("spec.yaml")
-
-    project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
-    if project_spec is None:
-        sys.exit(1)
-
     try:
+        shell_directory = Path(os.environ.get("PWD", ""))
+        edit_directory = (
+            shell_directory
+            if shell_directory.is_absolute()
+            and shell_directory.resolve() == Path.cwd()
+            and args.repository_name == Path(".")
+            else Path.cwd()
+        )
+        if args.config is None:
+            args.config = find_edit_spec(edit_directory)
+        args.config = args.config or Path("spec.yaml")
+
+        project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
+        if project_spec is None:
+            sys.exit(1)
+
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
@@ -214,11 +213,16 @@ def run():
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
-            if edit_directory is not None:
-                try:
-                    args.repository_name = current_repository(edit_directory, project_spec)
-                except ValueError as exc:
-                    parser.error(str(exc))
+            # if args.repository_name == Path("."):
+            #     edit_directory = Path.cwd()
+            #     # Keep the project hierarchy when the shell entered a symlinked checkout.
+            #     shell_directory = Path(os.environ.get("PWD", ""))
+            #     if shell_directory.is_absolute() and shell_directory.resolve() == edit_directory:
+            #         edit_directory = shell_directory
+            #     if args.config is None:
+            #         args.config = find_edit_spec(edit_directory)
+            if edit_directory is not None and args.repository_name == Path("."):
+                args.repository_name = current_repository(edit_directory, project_spec)
             if args.remove:
                 remove_editable(args.repository_name, args.config, args.workdir)
             else:
@@ -235,6 +239,9 @@ def run():
             )
             if ret != 0:
                 sys.exit(1)
+    except ValueError as exc:
+        parser.error(str(exc))
+        sys.exit(1)
     except Exception:
         sys.exit(1)
 

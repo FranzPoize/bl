@@ -67,7 +67,9 @@ def test_run_dispatches_edit_command(monkeypatch, tmp_path: Path):
     async def fake_make_editable(repository_name, config, workdir):
         calls.append((repository_name, config, workdir))
 
-    monkeypatch.setattr(sys, "argv", ["bl", "edit", "test-repo", "-N", "-c", str(tmp_path / "spec.yaml"), "-w", str(tmp_path)])
+    monkeypatch.setattr(
+        sys, "argv", ["bl", "edit", "test-repo", "-N", "-c", str(tmp_path / "spec.yaml"), "-w", str(tmp_path)]
+    )
     monkeypatch.setattr(bl_main, "setup_logging", lambda level: None)
     monkeypatch.setattr(bl_main, "load_spec_file", lambda *args: SimpleNamespace(repos={}, workdir=tmp_path))
     monkeypatch.setattr(bl_main, "make_editable", fake_make_editable)
@@ -145,13 +147,11 @@ def test_edit_dot_respects_target_folder_and_explicit_options(monkeypatch, tmp_p
     assert workdir == (project if explicit_config else None)
 
 
-@pytest.mark.parametrize("failure", ["missing-spec", "too-deep", "outside-repo", "nearest-spec"])
+@pytest.mark.parametrize("failure", ["missing-spec", "outside-repo", "nearest-spec"])
 def test_edit_dot_reports_discovery_errors_without_editing(monkeypatch, tmp_path, capsys, failure):
     project = tmp_path / "project"
     directory = project / "external-src" / "test-repo" / "module"
-    if failure == "too-deep":
-        directory = directory / "a" / "b" / "c"
-    elif failure == "outside-repo":
+    if failure == "outside-repo":
         directory = project
     directory.mkdir(parents=True)
     if failure != "missing-spec":

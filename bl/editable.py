@@ -11,12 +11,12 @@ console = Console()
 
 
 def find_edit_spec(directory: Path) -> Path:
-    """Find the nearest spec in this directory or its first five parents."""
-    for parent in (directory, *directory.parents[:5]):
+    """Find the nearest spec in this directory or its first seven parents."""
+    for parent in (directory, *directory.parents[:7]):
         spec = parent / "spec.yaml"
         if spec.is_file():
             return spec
-    raise ValueError(f"No spec.yaml found in {directory} or its first five parent directories")
+    raise ValueError(f"No spec.yaml found in {directory} or its first seven parent directories")
 
 
 def current_repository(directory: Path, project_spec: ProjectSpec) -> str:
@@ -57,9 +57,7 @@ def remove_editable(repository_name: str, spec: Path, workdir: Path) -> bool:
         project_config_file.remove_section("editable")
 
     write_config(project_name, project_config_file)
-    console.print(
-        f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]"
-    )
+    console.print(f"[green][yellow]{repository_name}[/] editable status removed from {project_config_file_path}[/]")
     return True
 
 
