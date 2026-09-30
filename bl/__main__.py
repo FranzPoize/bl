@@ -4,6 +4,7 @@ import atexit
 import json
 import logging
 import logging.handlers
+import os
 import queue
 import subprocess
 import sys
@@ -15,10 +16,11 @@ from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
-from bl.editable import make_editable
+from bl.editable import current_repository, find_edit_spec, make_editable, remove_editable
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
+from bl.utils import logical_cwd
 
 err_console = Console(stderr=True)
 out_console = Console()
@@ -62,6 +64,7 @@ listener = logging.handlers.QueueListener(que, RichConsoleHandler())
 
 
 def check_last_version() -> bool:
+    # TODO(franz): pip may not be named pip
     ret = subprocess.run(["which", "pip"], capture_output=True)
     ok = ret.returncode == 0
     pip_target = ret.stdout.decode().strip()
@@ -144,7 +147,13 @@ def run():
     sub.add_parser("freeze", parents=[parent_parser], help="freeze help")
     sub.add_parser("diff", parents=[parent_parser], help="Show diff for all dirty repos")
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
-    edit_parser.add_argument("repository_name", type=Path)
+    edit_parser.set_defaults(config=None)
+    edit_parser.add_argument("repository_name", type=Path, help="Repository name, or '.' for the current repository")
+    edit_parser.add_argument(
+        "--remove",
+        action="store_true",
+        help="Remove the saved editable status; the next build will manage the repo again.",
+    )
     init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
     init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
@@ -181,11 +190,19 @@ def run():
         run_copy("https://github.com/akretion/docky-odoo-template-shared", args.destination)
         sys.exit(0)
 
-    project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
-    if project_spec is None:
-        sys.exit(1)
-
     try:
+        # This is because Path.cwd() returns the resolve symbolic link path
+        # We need the unresolve symbolic link path to search for the spec.yaml
+        # upward in the hierarchy
+        edit_directory = logical_cwd()
+        if args.config is None:
+            args.config = find_edit_spec(edit_directory)
+        args.config = args.config or Path("spec.yaml")
+
+        project_spec = load_spec_file(args.config, args.frozen, args.workdir, args.config_override)
+        if project_spec is None:
+            sys.exit(1)
+
         if args.command == "freeze":
             asyncio.run(freeze_project(project_spec, args.frozen, concurrency=args.concurrency))
         elif args.command == "build":
@@ -193,7 +210,16 @@ def run():
         elif args.command == "diff":
             asyncio.run(show_diffs(project_spec))
         elif args.command == "edit":
-            asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
+            repository_name = (
+                current_repository(edit_directory, project_spec)
+                if args.repository_name == Path(".")
+                else args.repository_name
+            )
+
+            if args.remove:
+                remove_editable(repository_name, args.config, args.workdir)
+            else:
+                asyncio.run(make_editable(repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
                 clean_project(
@@ -206,6 +232,9 @@ def run():
             )
             if ret != 0:
                 sys.exit(1)
+    except ValueError as exc:
+        parser.error(str(exc))
+        sys.exit(1)
     except Exception:
         sys.exit(1)
 

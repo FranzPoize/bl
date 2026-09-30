@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from bl.spec_processor import (
     clone_info_from_repo,
     create_clone_args,
@@ -117,3 +119,20 @@ def test_clone_info_from_repo_odoo_with_locales() -> None:
     ci = clone_info_from_repo("odoo", repo_info)
     assert ci.clone_flags & CloneFlags.SHALLOW
     assert ci.clone_flags & CloneFlags.SPARSE
+
+
+@pytest.mark.parametrize(
+    "refspec,ref_name,expected",
+    [
+        ("18.0", None, "oca/18.0"),
+        ("refs/pull/1234/head", None, "oca/#1234"),
+        ("a" * 40, "refs/pull/1234/head", "oca/#1234"),
+        ("a" * 40, "18.0", "oca/18.0"),
+        ("a" * 40, None, "oca/" + "a" * 40),
+    ],
+)
+def test_format_merge_ref(refspec, ref_name, expected) -> None:
+    from bl.spec_processor import format_merge_ref
+    from bl.types import OriginType, RefspecInfo
+
+    assert format_merge_ref(RefspecInfo("oca", refspec, OriginType.REF, ref_name)) == expected

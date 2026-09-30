@@ -70,3 +70,37 @@ async def test_make_editable_fetches_full_repo_removes_hook_and_writes_state(mon
 
     config = bl_config.load_config("project")
     assert config["editable"]["test-repo"] == "True"
+
+
+def test_remove_editable_deletes_only_requested_saved_status(monkeypatch, tmp_path: Path) -> None:
+    workdir = tmp_path / "project" / "odoo"
+    project_spec = ProjectSpec({}, workdir)
+
+    monkeypatch.setattr(editable, "load_spec_file", lambda spec, frozen, wd, overrides: project_spec)
+    monkeypatch.setattr(bl_config, "xdg_config_home", lambda: tmp_path / "xdg")
+
+    config = bl_config.load_config("project")
+    config["editable"] = {"test-repo": "True", "other-repo": "True"}
+    bl_config.write_config("project", config)
+
+    assert editable.remove_editable("test-repo", tmp_path / "spec.yaml", workdir) is True
+
+    config = bl_config.load_config("project")
+    assert "test-repo" not in config["editable"]
+    assert config["editable"]["other-repo"] == "True"
+
+
+def test_remove_editable_is_idempotent_and_removes_empty_section(monkeypatch, tmp_path: Path) -> None:
+    workdir = tmp_path / "project" / "odoo"
+    project_spec = ProjectSpec({}, workdir)
+
+    monkeypatch.setattr(editable, "load_spec_file", lambda spec, frozen, wd, overrides: project_spec)
+    monkeypatch.setattr(bl_config, "xdg_config_home", lambda: tmp_path / "xdg")
+
+    config = bl_config.load_config("project")
+    config["editable"] = {"test-repo": "True"}
+    bl_config.write_config("project", config)
+
+    assert editable.remove_editable("test-repo", tmp_path / "spec.yaml", workdir) is True
+    assert "editable" not in bl_config.load_config("project")
+    assert editable.remove_editable("test-repo", tmp_path / "spec.yaml", workdir) is False

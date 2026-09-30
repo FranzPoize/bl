@@ -91,7 +91,8 @@ Shows diff for all dirty repos in the project.
 ### Edit
 
 ```bash
-bl edit REPOSITORY_NAME [options]
+bl edit REPOSITORY_NAME [--remove] [options]
+bl edit . [--remove] [options]
 ```
 
 #### What does it do
@@ -99,8 +100,18 @@ Turns a managed repo into an editable/full checkout: disables sparse checkout, f
 
 Use `bl edit <repo>` before committing locally. Editable repos are remembered and skipped by future builds.
 
+Use `bl edit .` from a repository or one of its subdirectories to make that repository editable.
+BL uses the nearest `spec.yaml` in the current directory or up to five parent directories,
+then matches your location against the repositories in that spec, including custom `target_folder` paths.
+An explicit `-c/--config` selects the spec instead; `-w/--workdir` still overrides its working directory.
+The command fails if no nearby spec exists or the current directory is outside its repositories.
+
+Use `bl edit <repo> --remove` (or `bl edit . --remove`) to delete only the saved editable status. It does not reset or
+otherwise change the checkout; the next `bl build` will manage the repo again.
+
 #### Params
-* `REPOSITORY_NAME` repo to make editable
+* `REPOSITORY_NAME` repo to make editable, or `.` for the current repo
+* `--remove` remove the repo's saved editable status
 * `options` same shared options as above
 
 ### Clean
