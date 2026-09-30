@@ -16,7 +16,7 @@ from rich.console import Console
 
 import bl
 from bl.clean_project import clean_project, show_diffs
-from bl.editable import current_repository, find_edit_spec, make_editable
+from bl.editable import current_repository, find_edit_spec, make_editable, remove_editable
 from bl.freezer import freeze_project
 from bl.spec_parser import load_spec_file
 from bl.spec_processor import process_project
@@ -147,6 +147,11 @@ def run():
     edit_parser = sub.add_parser("edit", parents=[parent_parser], help="Make a repo editable")
     edit_parser.set_defaults(config=None)
     edit_parser.add_argument("repository_name", type=Path, help="Repository name, or '.' for the current repository")
+    edit_parser.add_argument(
+        "--remove",
+        action="store_true",
+        help="Remove the saved editable status; the next build will manage the repo again.",
+    )
     init_parser = sub.add_parser("init", parents=[parent_parser], help="Initialize a project from a template")
     init_parser.add_argument("destination", type=Path, nargs="?", default=Path("."), help="Destination directory")
     clean_parser = sub.add_parser("clean", parents=[parent_parser], help="Clean src and external-src in workdir")
@@ -214,7 +219,10 @@ def run():
                     args.repository_name = current_repository(edit_directory, project_spec)
                 except ValueError as exc:
                     parser.error(str(exc))
-            asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
+            if args.remove:
+                remove_editable(args.repository_name, args.config, args.workdir)
+            else:
+                asyncio.run(make_editable(args.repository_name, args.config, args.workdir))
         elif args.command == "clean":
             ret = asyncio.run(
                 clean_project(
