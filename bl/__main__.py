@@ -68,8 +68,10 @@ def check_last_version() -> bool:
     ret = subprocess.run(["which", "pip"], capture_output=True)
     ok = ret.returncode == 0
     pip_target = ret.stdout.decode().strip()
+    if not ok:
+        msg = "[red]Can't find pip on this machine[/]"
 
-    pip_call = subprocess.run(["pip", "index", "versions", "--json", "bl-odoo"], capture_output=True)
+    pip_call = subprocess.run([pip_target, "index", "versions", "--json", "bl-odoo"], capture_output=True)
     pip_index_ok = pip_call.returncode == 0
     pip_return_value = pip_call.stdout.decode().strip()
 
